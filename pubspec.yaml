@@ -1,0 +1,76 @@
+name: mobile_programming_project
+description: "A new Flutter project."
+
+publish_to: 'none'
+
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.3
+
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_fonts: ^6.2.1
+  flutter_contacts: ^1.1.9+2
+  image_picker: ^1.1.2
+  sqflite: ^2.4.1
+  cupertino_icons: ^1.0.8
+  firebase_core: ^3.8.1
+  firebase_auth: ^5.3.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+
+  flutter_lints: ^4.0.0
+
+
+flutter:
+
+
+  uses-material-design: true
+  assets:
+    - assets/Images/background.jpg
+    - assets/Images/John.jpg
+    - assets/Images/Jane.jpg
+    - assets/Images/alice.jpg
+    - assets/Images/male.png
+    - assets/Images/female.png
+    - assets/Images/headphones.jpg
+    - assets/Images/gamingmouse.jpg
+    - assets/Images/kindle.jpg
+    - assets/Images/smartwatch.jpg
+    - assets/Images/boxinggloves.jpg
+    - assets/Images/necklace.jpeg
+    - assets/Images/default.png
+  # To add assets to your application, add an assets section, like this:
+
+  #   - images/a_dot_ham.jpeg
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  #fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #

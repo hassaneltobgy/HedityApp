@@ -28,6 +28,7 @@ class DatabaseClass {
         await db.execute('''
         CREATE TABLE IF NOT EXISTS Users (
           ID INTEGER PRIMARY KEY AUTOINCREMENT,
+          firebaseUid TEXT NOT NULL UNIQUE,
           name TEXT NOT NULL,
           email TEXT NOT NULL UNIQUE,
           password TEXT NOT NULL,
@@ -121,7 +122,7 @@ class DatabaseClass {
   }
 
   //Register -->  related Function
-  Future<int> insertUser(String name, String email, String password, String dob, String gender, String nationality, String notification) async {
+  Future<int> insertUser(String name, String email, String password, String dob, String gender, String nationality, String notification, String firebaseUid) async {
     final db = await MyDataBase;
     return await db!.insert('Users', {
       'name': name,
@@ -131,6 +132,7 @@ class DatabaseClass {
       'gender': gender,
       'nationality': nationality,
       'notification': notification,
+      'firebaseUid':firebaseUid,
     });
   }
 
@@ -169,6 +171,23 @@ class DatabaseClass {
     final result = await db!.query('Users', where: 'ID = ?', whereArgs: [userId]);
     return result.first;
   }
+
+  //Needed for firebase Authentication
+  Future<int?> getUserIdByFirebaseUid(String firebaseUid) async {
+    final db = await MyDataBase;
+    List<Map> result = await db!.query(
+      'Users',
+      where: 'firebaseUid = ?',
+      whereArgs: [firebaseUid],
+    );
+
+    if (result.isNotEmpty) {
+      return result.first['ID'] as int?;
+    } else {
+      return null; // No user found with the given Firebase UID
+    }
+  }
+
 
 
 // Method to insert a new friend--> Homepage

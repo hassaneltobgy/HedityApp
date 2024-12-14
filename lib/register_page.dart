@@ -1,7 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_programming_project/home_page.dart'; // Replace with your HomePage import
 import 'login_page.dart'; // Import LoginPage
 import 'package:mobile_programming_project/Models/Database.dart'; // Import the DatabaseClass
+
 
 class RegisterPage extends StatelessWidget {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
@@ -93,26 +95,53 @@ class RegisterPage extends StatelessWidget {
                                 return;
                               }
 
-                              // Save user to the database
-                              int userId = await mydb.insertUser(
-                                _nameController.text,
-                                _emailController.text,
-                                _passwordController.text,
-                                _dobController.text,
-                                _genderController.text,
-                                _nationalityController.text,
-                                _notificationController.text,
-                              );
+                              try {
+                                // Firebase Authentication
+                                UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+                                  email: _emailController.text,
+                                  password: _passwordController.text,
+                                );
+                                // Get the Firebase UID
+                                String firebaseUid = userCredential.user!.uid;
+                                // Save additional user info to the SQLite database
+                                int userId = await mydb.insertUser(
+                                  _nameController.text,
+                                  _emailController.text,
+                                  _passwordController.text,
+                                  _dobController.text,
+                                  _genderController.text,
+                                  _nationalityController.text,
+                                  _notificationController.text,
+                                  firebaseUid,
+                                );
 
-                              // Navigate to HomePage
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => HomePage(userId: userId)),
-                              );
+                                // Navigate to HomePage
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => HomePage(userId: userId)),
+                                );
+                              } on FirebaseAuthException catch (e) {
+                                String errorMessage;
+                                if (e.code == 'email-already-in-use') {
+                                  errorMessage = 'This email is already registered.';
+                                } else if (e.code == 'weak-password') {
+                                  errorMessage = 'The password is too weak.';
+                                } else {
+                                  errorMessage = 'An error occurred. Please try again.';
+                                }
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(errorMessage, style: TextStyle(color: Colors.white)),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
                             }
                           },
                           child: Text("Register"),
-                        ),
+                        )
+                        ,
                       ],
                     ),
                   ),

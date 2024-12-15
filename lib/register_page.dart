@@ -1,9 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile_programming_project/home_page.dart'; // Replace with your HomePage import
-import 'login_page.dart'; // Import LoginPage
-import 'package:mobile_programming_project/Models/Database.dart'; // Import the DatabaseClass
-
+import 'package:mobile_programming_project/home_page.dart';
+import 'login_page.dart';
+import 'package:mobile_programming_project/Models/Database.dart';
+import 'package:mobile_programming_project/Models/Firestore.dart'; // Import FirestoreService
 
 class RegisterPage extends StatelessWidget {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
@@ -15,7 +15,9 @@ class RegisterPage extends StatelessWidget {
   final TextEditingController _genderController = TextEditingController();
   final TextEditingController _nationalityController = TextEditingController();
   final TextEditingController _notificationController = TextEditingController();
+  final TextEditingController _phonenoController = TextEditingController();
   final DatabaseClass mydb = DatabaseClass(); // Database instance
+  final FirestoreService firestoreService = FirestoreService(); // Firestore service instance
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +64,10 @@ class RegisterPage extends StatelessWidget {
                         _buildTextField(labelText: "Gender", icon: Icons.person_outline, controller: _genderController),
                         _buildTextField(labelText: "Nationality", icon: Icons.flag, controller: _nationalityController),
                         _buildTextField(
-                            labelText: "Preferred Notification", icon: Icons.notifications, controller: _notificationController),
+                            labelText: "Preferred Notification",
+                            icon: Icons.notifications,
+                            controller: _notificationController),
+                        _buildTextField(labelText: "Phone Number ", icon: Icons.phone, controller: _phonenoController),
                         _buildTextField(
                           labelText: "Password",
                           icon: Icons.lock,
@@ -85,6 +90,7 @@ class RegisterPage extends StatelessWidget {
                           ),
                           onPressed: () async {
                             if (_formKey.currentState!.validate()) {
+                              // Check if passwords match
                               if (_passwordController.text != _confirmPasswordController.text) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
@@ -95,15 +101,44 @@ class RegisterPage extends StatelessWidget {
                                 return;
                               }
 
+                              // Check if the phone number is valid (only digits)
+                              String phoneNumber = _phonenoController.text;
+                              if (!RegExp(r'^[0-9]+$').hasMatch(phoneNumber)) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text("Please enter a valid phone number (digits only)", style: TextStyle(color: Colors.white)),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+
+
                               try {
                                 // Firebase Authentication
                                 UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
                                   email: _emailController.text,
                                   password: _passwordController.text,
                                 );
+
                                 // Get the Firebase UID
                                 String firebaseUid = userCredential.user!.uid;
-                                // Save additional user info to the SQLite database
+
+                                // Save user info to Firestore using FirestoreService
+                                Map<String, dynamic> userData = {
+                                  'name': _nameController.text,
+                                  'email': _emailController.text,
+                                  'date_of_birth': _dobController.text,
+                                  'gender': _genderController.text,
+                                  'nationality': _nationalityController.text,
+                                  'notification': _notificationController.text,
+                                  'image_path': 'assets/Images/default_user_image.png',
+                                  'PhoneNo':_phonenoController.text,
+
+                                };
+                                await firestoreService.addUser_Firestore(firebaseUid, userData);
+
+                                // Optional: Save to SQLite if local storage is still needed
                                 int userId = await mydb.insertUser(
                                   _nameController.text,
                                   _emailController.text,
@@ -113,12 +148,14 @@ class RegisterPage extends StatelessWidget {
                                   _nationalityController.text,
                                   _notificationController.text,
                                   firebaseUid,
+                                  _phonenoController.text,
+
                                 );
 
-                                // Navigate to HomePage
+                                // Navigate to HomePage with Firebase UID
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => HomePage(userId: userId)),
+                                  MaterialPageRoute(builder: (context) => HomePage(userId: userId, firebaseUid: firebaseUid)),
                                 );
                               } on FirebaseAuthException catch (e) {
                                 String errorMessage;
@@ -141,7 +178,6 @@ class RegisterPage extends StatelessWidget {
                           },
                           child: Text("Register"),
                         )
-                        ,
                       ],
                     ),
                   ),

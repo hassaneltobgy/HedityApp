@@ -26,59 +26,59 @@ class DatabaseClass {
       onCreate: (db, version) async {
         // Create Users Table
         await db.execute('''
-        CREATE TABLE IF NOT EXISTS Users (
-          ID INTEGER PRIMARY KEY AUTOINCREMENT,
-          firebaseUid TEXT NOT NULL UNIQUE,
-          name TEXT NOT NULL,
-          email TEXT NOT NULL UNIQUE,
-          password TEXT NOT NULL,
-          date_of_birth TEXT,
-          gender TEXT,
-          nationality TEXT,
-          notification TEXT
-        )
-        ''');
-
+      CREATE TABLE IF NOT EXISTS Users (
+        ID INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebaseUid TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        date_of_birth TEXT,
+        gender TEXT,
+        nationality TEXT,
+        notification TEXT,
+        image_path TEXT,
+        PhoneNo TEXT NOT NULL UNIQUE
+      )
+      ''');
 
         // Create Events Table
         await db.execute('''
-          CREATE TABLE IF NOT EXISTS Events (
-            ID INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            date TEXT NOT NULL,
-            location TEXT NOT NULL,
-            description TEXT,
-            user_id INTEGER NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES Users (ID)
-          )
-        ''');
-
-        // Create Gifts Table
-        await db.execute('''
-        CREATE TABLE IF NOT EXISTS Gifts (
+        CREATE TABLE IF NOT EXISTS Events (
           ID INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT NOT NULL,
+          date TEXT NOT NULL,
+          location TEXT NOT NULL,
           description TEXT,
-          category TEXT,
-          price REAL NOT NULL,
-          image_path TEXT, 
-          event_id INTEGER NOT NULL,
-          is_pledged INTEGER NOT NULL,
-          FOREIGN KEY (event_id) REFERENCES Events (ID)
+          user_id INTEGER NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES Users (ID)
         )
       ''');
 
-        // Create Friends Table
-        //Many to Many RelationSHip
+        // Create Gifts Table
         await db.execute('''
-          CREATE TABLE IF NOT EXISTS Friends (
-            user_id INTEGER NOT NULL,
-            friend_id INTEGER NOT NULL,
-            PRIMARY KEY (user_id, friend_id),
-            FOREIGN KEY (user_id) REFERENCES Users (ID),
-            FOREIGN KEY (friend_id) REFERENCES Users (ID)
-          )
-        ''');
+      CREATE TABLE IF NOT EXISTS Gifts (
+        ID INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        category TEXT,
+        price REAL NOT NULL,
+        image_path TEXT, 
+        event_id INTEGER NOT NULL,
+        is_pledged INTEGER NOT NULL,
+        FOREIGN KEY (event_id) REFERENCES Events (ID)
+      )
+      ''');
+
+        // Create Friends Table
+        await db.execute('''
+        CREATE TABLE IF NOT EXISTS Friends (
+          user_id INTEGER NOT NULL,
+          friend_id INTEGER NOT NULL,
+          PRIMARY KEY (user_id, friend_id),
+          FOREIGN KEY (user_id) REFERENCES Users (ID),
+          FOREIGN KEY (friend_id) REFERENCES Users (ID)
+        )
+      ''');
 
         print("Database successfully created");
       },
@@ -122,7 +122,7 @@ class DatabaseClass {
   }
 
   //Register -->  related Function
-  Future<int> insertUser(String name, String email, String password, String dob, String gender, String nationality, String notification, String firebaseUid) async {
+  Future<int> insertUser(String name, String email, String password, String dob, String gender, String nationality, String notification, String firebaseUid,String phoneno) async {
     final db = await MyDataBase;
     return await db!.insert('Users', {
       'name': name,
@@ -133,6 +133,8 @@ class DatabaseClass {
       'nationality': nationality,
       'notification': notification,
       'firebaseUid':firebaseUid,
+      'image_path': 'assets/Images/default_user_image.png',
+      'PhoneNo':phoneno,
     });
   }
 
@@ -166,6 +168,23 @@ class DatabaseClass {
     }
   }
 
+  // Function to set profile picture for the current user
+  Future<void> setProfilePicture(int userId, String imagePath) async {
+    try {
+      // Update the image_path field for the user with the given ID
+      final db = await MyDataBase;
+      await db!.update(
+        'Users',
+        {'image_path': imagePath},
+        where: 'ID = ?', // Condition
+        whereArgs: [userId], // Arguments for the condition
+      );
+      print("Profile picture updated successfully for user ID: $userId");
+    } catch (e) {
+      print("Error updating profile picture: $e");
+    }
+  }
+
   Future<Map<String, dynamic>> getUserById(int userId) async {
     final db = await MyDataBase;
     final result = await db!.query('Users', where: 'ID = ?', whereArgs: [userId]);
@@ -180,6 +199,23 @@ class DatabaseClass {
       where: 'firebaseUid = ?',
       whereArgs: [firebaseUid],
     );
+
+    Future<String?> getFirebaseUidById(int id) async {
+      final db = await MyDataBase; // Assuming MyDataBase is your database instance
+      List<Map> result = await db!.query(
+        'Users',
+        where: 'ID = ?',
+        whereArgs: [id],
+      );
+
+      if (result.isNotEmpty) {
+        return result.first['firebaseUid']; // Return firebaseUid
+      } else {
+        print('No user found with ID: $id');
+        return null;
+      }
+    }
+
 
     if (result.isNotEmpty) {
       return result.first['ID'] as int?;

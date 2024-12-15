@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile_programming_project/Models/Database.dart';
-import 'eventListPage.dart'; // Import EventListPage
-import 'package:flutter/services.dart';
-import 'MyEventListPage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'MyEventListPage.dart'; // Import Event List Page
+import 'user_profile.dart';
 
 class HomePage extends StatefulWidget {
   final int userId;
+  final String firebaseUid;
 
-  HomePage({required this.userId});
+  HomePage({required this.userId, required this.firebaseUid});
 
   _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  DatabaseClass mydb = DatabaseClass();
   TextEditingController _searchController = TextEditingController();
 
   List<Map<String, dynamic>> friends = [];
@@ -24,8 +23,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadFriends(); // Load friends from the database
-
+    _loadFriends(); // Load friends from Firestore
     _searchController.addListener(() {
       setState(() {
         filteredFriends = friends
@@ -36,26 +34,52 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  // Load friends for the current user from the database
+  // Load friends for the current user from Firestore
   Future<void> _loadFriends() async {
-    List<Map<String, dynamic>> allFriends = await mydb.getFriends(widget.userId);
+    List<Map<String, dynamic>> allFriends = [];
+    QuerySnapshot snapshot = await FirebaseFirestore.instance
+        .collection('friends')
+        .where('userUid', isEqualTo: widget.firebaseUid)
+        .get();
+
+    for (var doc in snapshot.docs) {
+      String Friend_firebaseUid = doc['friendUid'];
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('Users').doc(Friend_firebaseUid).get();
+
+      // Get profile data
+      String name = userDoc['name'];
+      String imagePath = userDoc['image_path'] ?? 'assets/Images/default_user_image.png';
+
+      int upcomingEventsCount = await _getUpcomingEventsCount(Friend_firebaseUid);
+
+      allFriends.add({
+        'name': name,
+        'profilePic': imagePath,
+        'upcomingEvents': upcomingEventsCount.toString(),
+        'id': Friend_firebaseUid,
+      });
+    }
+
     setState(() {
       friends = allFriends;
       filteredFriends = allFriends;
     });
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  // Get upcoming events count for a friend
+  Future<int> _getUpcomingEventsCount(String Friend_firebaseUid) async {
+    QuerySnapshot eventSnapshot = await FirebaseFirestore.instance
+        .collection('events')
+        .where('userUid', isEqualTo: Friend_firebaseUid)
+        .where('status', whereIn: ['current', 'upcoming'])
+        .get();
+
+    return eventSnapshot.docs.length;
   }
 
-  // Add a friend manually (save to DB)
+  // Add a friend manually (search by phone number)
   void _addFriendManually() {
-    final nameController = TextEditingController();
-    final eventsController = TextEditingController();
-    final genderController = TextEditingController();
+    final phoneController = TextEditingController();
 
     showDialog(
       context: context,
@@ -66,9 +90,11 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: nameController, decoration: InputDecoration(labelText: 'Name')),
-                TextField(controller: eventsController, decoration: InputDecoration(labelText: 'Upcoming Events')),
-                TextField(controller: genderController, decoration: InputDecoration(labelText: 'Gender (M/F)')),
+                TextField(
+                  controller: phoneController,
+                  decoration: InputDecoration(labelText: 'Phone Number'),
+                  keyboardType: TextInputType.phone,
+                ),
               ],
             ),
           ),
@@ -81,20 +107,39 @@ class _HomePageState extends State<HomePage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.isNotEmpty &&
-                    eventsController.text.isNotEmpty &&
-                    (genderController.text.toLowerCase() == 'm' || genderController.text.toLowerCase() == 'f')) {
-                  // Add the friend to the database
-                  await mydb.insertFriend(nameController.text,
-                      genderController.text.toLowerCase() == 'm'
-                          ? 'assets/Images/male.png'
-                          : 'assets/Images/female.png',
-                      eventsController.text);
+                if (phoneController.text.isNotEmpty) {
+                  // Check if the phone number is registered
+                  bool isRegistered = await _isPhoneNumberRegistered(phoneController.text);
+                  if (isRegistered) {
+                    String Friend_firebaseUid = await _getFirebaseUidByPhone(phoneController.text);
 
-                  // Reload friends list after adding new friend
-                  await _loadFriends();
+                    // Fetch user details and add to the list
+                    DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('Users').doc(Friend_firebaseUid).get();
+                    int upcomingEventsCount = await _getUpcomingEventsCount(Friend_firebaseUid);
 
-                  Navigator.pop(context);
+                    // Add the friend to the "friends" collection in Firestore
+                    await FirebaseFirestore.instance.collection('friends').add({
+                      'userUid': widget.firebaseUid,
+                      'friendUid': Friend_firebaseUid,
+                    });
+
+                    // Add the friend to the list
+                    setState(() {
+                      friends.add({
+                        'name': userDoc['name'],
+                        'profilePic': userDoc['image_path'] ?? 'assets/Images/default_user_image.png',
+                        'upcomingEvents': upcomingEventsCount.toString(),
+                        'id': Friend_firebaseUid,
+                      });
+                      filteredFriends = friends;
+                    });
+
+                    Navigator.pop(context);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Phone number is not registered')),
+                    );
+                  }
                 }
               },
               child: Text('Add'),
@@ -105,78 +150,33 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Add a friend from contacts
-  Future<void> _addFriendFromContacts() async {
-    if (await FlutterContacts.requestPermission()) {
-      List<Contact> contacts = await FlutterContacts.getContacts(
-        withProperties: true,
-        withPhoto: true,
-      );
+  // Check if the phone number is registered in Firestore
+  Future<bool> _isPhoneNumberRegistered(String phone) async {
+    QuerySnapshot snapshot = await FirebaseFirestore.instance
+        .collection('Users')
+        .where('PhoneNo', isEqualTo: phone)
+        .get();
 
-      showModalBottomSheet(
-        context: context,
-        builder: (context) {
-          return ListView.builder(
-            itemCount: contacts.length,
-            itemBuilder: (context, index) {
-              final contact = contacts[index];
-              return ListTile(
-                leading: contact.photo != null
-                    ? CircleAvatar(backgroundImage: MemoryImage(contact.photo!))
-                    : CircleAvatar(child: Text(contact.displayName[0])),
-                title: Text(contact.displayName),
-                onTap: () {
-                  setState(() {
-                    friends.add({
-                      'name': contact.displayName,
-                      'profilePic': 'assets/Images/default_profile.png',
-                      'upcomingEvents': '0', // Default to no upcoming events
-                    });
-                    filteredFriends = friends;
-                  });
-                  Navigator.pop(context);
-                },
-              );
-            },
-          );
-        },
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Permission to access contacts was denied')),
-      );
-    }
+    return snapshot.docs.isNotEmpty;
   }
 
-  void _addFriend() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Add Friend'),
-          content: Text('How would you like to add a friend?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _addFriendManually();
-              },
-              child: Text('Enter Manually'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _addFriendFromContacts();
-              },
-              child: Text('Select from Contacts'),
-            ),
-          ],
-        );
-      },
+  // Retrieve Firebase UID by phone number
+  Future<String> _getFirebaseUidByPhone(String phone) async {
+    QuerySnapshot snapshot = await FirebaseFirestore.instance
+        .collection('Users')
+        .where('PhoneNo', isEqualTo: phone)
+        .get();
+
+    return snapshot.docs.first.id;
+  }
+  void _navigateToProfile() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => ProfilePage(userId: widget.userId)),
     );
   }
-
-  void _createEventOrList() {
+  // Navigate to friend's event list page
+  void _navigateToFriendEvents(String friendId) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -184,7 +184,6 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -208,30 +207,30 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Colors.black,
         elevation: 5,
         actions: [
+          // Using Row to display text and icon next to each other
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: GestureDetector(
-              onTap: _createEventOrList,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.add, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text(
-                    'Create Your Own Event',
-                    style: GoogleFonts.poppins(
-                      color: Colors.red,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Row(
+              children: [
+                Text(
+                  'My Profile',
+                  style: GoogleFonts.poppins(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
                   ),
-                ],
-              ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.person, color: Colors.red),
+                  onPressed: _navigateToProfile, // Navigate to profile page
+                ),
+              ],
             ),
           ),
         ],
       ),
-      body: Stack(
+
+        body: Stack(
         children: [
           Container(
             decoration: BoxDecoration(
@@ -265,7 +264,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: _addFriend,
+                  onPressed: _addFriendManually,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,
@@ -277,7 +276,7 @@ class _HomePageState extends State<HomePage> {
                     elevation: 5,
                   ),
                   child: Text(
-                    'Add Friend',
+                    'Add Friend Manually',
                     style: GoogleFonts.poppins(
                       color: Colors.black,
                       fontSize: 16,
@@ -292,14 +291,7 @@ class _HomePageState extends State<HomePage> {
                     itemBuilder: (context, index) {
                       final friend = filteredFriends[index];
                       return GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => EventListPage(friendId: friend['id'],userId:widget.userId), // Pass friend ID here
-                            ),
-                          );
-                        },
+                        onTap: () => _navigateToFriendEvents(friend['id']),
                         child: Card(
                           color: Colors.black.withOpacity(0.6),
                           margin: EdgeInsets.symmetric(vertical: 10),
@@ -309,35 +301,29 @@ class _HomePageState extends State<HomePage> {
                           elevation: 15,
                           child: Padding(
                             padding: const EdgeInsets.all(15.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Row(
                               children: [
-                                Row(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 30,
-                                      backgroundImage: AssetImage(friend['profilePic']),
-                                      backgroundColor: Colors.grey,
-                                    ),
-                                    SizedBox(width: 15),
-                                    Expanded(
-                                      child: Text(
-                                        friend['name'],
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
+                                CircleAvatar(
+                                  radius: 30,
+                                  backgroundImage: NetworkImage(friend['profilePic']),
+                                  backgroundColor: Colors.grey,
                                 ),
-                                SizedBox(height: 10),
+                                SizedBox(width: 15),
+                                Expanded(
+                                  child: Text(
+                                    friend['name'],
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
                                 Text(
-                                  'Upcoming Events: ${friend['upcomingEvents']}',
+                                  '${friend['upcomingEvents']} upcoming events',
                                   style: TextStyle(
-                                    color: Colors.white70,
+                                    color: Colors.white.withOpacity(0.7),
                                     fontSize: 14,
                                   ),
                                 ),

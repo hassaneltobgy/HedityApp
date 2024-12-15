@@ -44,6 +44,8 @@ class _ProfilePageState extends State<ProfilePage> {
       });
     }
   }
+
+
   Future<void> _loadUserData() async {
     final userData = await mydb.getUserById(widget.userId);
     setState(() {

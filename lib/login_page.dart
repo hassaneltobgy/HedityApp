@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'package:mobile_programming_project/home_page.dart'; // Import HomePage
 import 'register_page.dart'; // Import RegisterPage
 import 'package:mobile_programming_project/Models/Database.dart'; // Import DatabaseClass
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
+  @override
+  _LoginPageState createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final DatabaseClass mydb = DatabaseClass(); // Database instance
+  final DatabaseClass mydb = DatabaseClass();
+
+  bool _isLoading = false; // For loading indicator
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +81,9 @@ class LoginPage extends StatelessWidget {
                           obscureText: true,
                         ),
                         SizedBox(height: 20),
-                        ElevatedButton(
+                        _isLoading
+                            ? Center(child: CircularProgressIndicator())
+                            : ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red,
                             foregroundColor: Colors.white,
@@ -82,58 +92,7 @@ class LoginPage extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          onPressed: () async {
-                            if (_formKey.currentState!.validate()) {
-                              try {
-                                // Firebase Authentication
-                                UserCredential userCredential =
-                                await FirebaseAuth.instance.signInWithEmailAndPassword(
-                                  email: _emailController.text,
-                                  password: _passwordController.text,
-                                );
-
-                                // Get the Firebase UID
-                                String firebaseUid = userCredential.user!.uid;
-
-                                // Retrieve the corresponding userId from the local database
-                                int? userId = await mydb.getUserIdByFirebaseUid(firebaseUid);
-                                print('UserId from local database: $userId');
-
-                                if (userId != null) {
-                                  // If userId exists in the local database, navigate to HomePage
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => HomePage(userId: userId),
-                                    ),
-                                  );
-                                } else {
-                                  // Handle error: No matching userId found
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('User not found in local database')),
-                                  );
-                                }
-                              } on FirebaseAuthException catch (e) {
-
-                                  print('Error Code: ${e.code}');
-                                print('Error Message: ${e.message}');
-                                print("I am currently at exception");
-                                // Handle Firebase authentication errors
-                                String errorMessage;
-                                if (e.code == 'user-not-found') {
-                                  errorMessage = 'No user found for that email.';
-                                } else if (e.code == 'wrong-password') {
-                                  errorMessage = 'Wrong password provided for that user.';
-                                } else {
-                                  errorMessage = 'An error occurred. Please try again.';
-                                }
-
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(errorMessage)),
-                                );
-                              }
-                            }
-                          },
+                          onPressed: _handleLogin,
                           child: Text("Login"),
                         ),
                         SizedBox(height: 20),
@@ -194,5 +153,127 @@ class LoginPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _handleLogin() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        // Firebase Authentication
+        UserCredential userCredential = await FirebaseAuth.instance
+            .signInWithEmailAndPassword(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+
+        // Get the Firebase UID
+        String firebaseUid = userCredential.user!.uid;
+
+        // Retrieve the corresponding userId from the local database
+        int? userId = await mydb.getUserIdByFirebaseUid(firebaseUid);
+
+        if (userId == null) {
+          // Fetch data from Firestore and sync it locally
+          final userDoc = await FirebaseFirestore.instance
+              .collection('Users')
+              .doc(firebaseUid)
+              .get();
+
+          if (!userDoc.exists) {
+            throw Exception('User data not found in Firestore');
+          }
+
+          // Sync user data
+          final userData = userDoc.data()!;
+
+// Add image_path to SQLite database entry
+          await mydb.insertUser(
+            userData['name'] ?? '',
+            userData['email'] ?? '',
+            '', // Password isn't typically stored locally for security
+            userData['date_of_birth'] ?? '',
+            userData['gender'] ?? '',
+            userData['nationality'] ?? '',
+            userData['notification'] ?? 'enabled',
+            firebaseUid,
+            userData['PhoneNo'] ?? '',
+          );
+
+
+          // Sync events and gifts
+          await _syncUserEventsAndGifts(firebaseUid);
+
+          // Fetch the new userId from the local database
+          userId = await mydb.getUserIdByFirebaseUid(firebaseUid);
+        }
+
+        // Navigate to HomePage
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomePage(userId: userId!,firebaseUid:firebaseUid),
+          ),
+        );
+      } catch (e) {
+        print('Error during login: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      } finally {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _syncUserEventsAndGifts(String firebaseUid) async {
+    try {
+      final eventsSnapshot = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(firebaseUid)
+          .collection('events')
+          .get();
+
+      for (var eventDoc in eventsSnapshot.docs) {
+        final eventId = eventDoc.id;
+        final eventData = eventDoc.data();
+
+        await mydb.insertEvent(
+          eventData['name'] ?? '',
+          eventData['location'] ?? '',
+          eventData['description'] ?? '',
+          eventData['date'] ?? '',
+          (await mydb.getUserIdByFirebaseUid(firebaseUid))!,
+        );
+
+        final giftsSnapshot = await FirebaseFirestore.instance
+            .collection('Users')
+            .doc(firebaseUid)
+            .collection('events')
+            .doc(eventId)
+            .collection('gifts')
+            .get();
+
+        for (var giftDoc in giftsSnapshot.docs) {
+          final giftData = giftDoc.data();
+          await mydb.insertGift(
+            giftData['name'] ?? '',
+            giftData['description'] ?? '',
+            giftData['category'] ?? '',
+            giftData['price']?.toDouble() ?? 0.0,
+            giftData['image_path'] ?? '',
+            int.parse(eventId), // Assuming eventId can be converted to int
+            giftData['is_pledged'] == true ? 1 : 0,
+          );
+        }
+      }
+    } catch (e) {
+      print('Error syncing events and gifts: $e');
+      throw Exception('Failed to sync events and gifts');
+    }
   }
 }

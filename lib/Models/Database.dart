@@ -45,6 +45,7 @@ class DatabaseClass {
         await db.execute('''
         CREATE TABLE IF NOT EXISTS Events (
           ID INTEGER PRIMARY KEY AUTOINCREMENT,
+          firebaseUid TEXT NOT NULL UNIQUE,
           name TEXT NOT NULL,
           date TEXT NOT NULL,
           location TEXT NOT NULL,
@@ -138,6 +139,45 @@ class DatabaseClass {
     });
   }
 
+  Future<void> updateUser({
+    required int userId,
+    required String name,
+    required String email,
+    required String dateOfBirth,
+    required String gender,
+    required String nationality,
+    required String notification,
+    required String imagePath,
+  }) async {
+    try {
+      final db = await MyDataBase; // Ensure you use the singleton instance of the database
+
+      // Map to hold the new values for the update (excluding password)
+      Map<String, dynamic> updatedFields = {
+        'name': name,
+        'email': email,
+        'date_of_birth': dateOfBirth,
+        'gender': gender,
+        'nationality': nationality,
+        'notification': notification,
+        'image_path': imagePath,
+      };
+
+      // Perform the update operation
+      await db!.update(
+        'Users', // Table name
+        updatedFields, // Map containing the updated values
+        where: 'ID = ?', // Update based on the user ID
+        whereArgs: [userId], // User ID to match
+      );
+
+      print("User successfully updated for user ID: $userId");
+    } catch (e) {
+      print("Error updating user for user ID $userId: $e");
+    }
+  }
+
+
 
   // Authenticate User--> For login page
   Future<bool> authenticateUser(String email, String password) async {
@@ -184,6 +224,25 @@ class DatabaseClass {
       print("Error updating profile picture: $e");
     }
   }
+
+  Future<void> updateUserImage(int userId, String imagePath) async {
+    try {
+      final db = await MyDataBase; // Ensure you use the singleton instance of the database
+
+      // Update the image_path field in the Users table for the specified user ID
+      await db!.update(
+        'Users', // Table name
+        {'image_path': imagePath}, // Field to update
+        where: 'ID = ?', // Condition to match the user ID
+        whereArgs: [userId], // User ID value to match
+      );
+
+      print("Profile picture updated successfully for user ID: $userId");
+    } catch (e) {
+      print("Error updating profile picture for user ID $userId: $e");
+    }
+  }
+
 
   Future<Map<String, dynamic>> getUserById(int userId) async {
     final db = await MyDataBase;

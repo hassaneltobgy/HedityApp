@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'MyEventListPage.dart'; // Import Event List Page
-import 'user_profile.dart';
+import 'eventListPage.dart'; // Import Event List Page
+import 'MyEventListPage.dart';
 
 class HomePage extends StatefulWidget {
   final int userId;
@@ -66,6 +66,37 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future<void> _deleteFriend(String friendUid) async {
+    try {
+      // Query Firestore to find the specific friend document for the current user
+      QuerySnapshot snapshot = await FirebaseFirestore.instance
+          .collection('friends')
+          .where('userUid', isEqualTo: widget.firebaseUid)
+          .where('friendUid', isEqualTo: friendUid)
+          .get();
+
+      // Delete the friend document
+      for (var doc in snapshot.docs) {
+        await FirebaseFirestore.instance.collection('friends').doc(doc.id).delete();
+      }
+
+      // Update local state
+      setState(() {
+        friends.removeWhere((friend) => friend['id'] == friendUid);
+        filteredFriends = friends; // Update the filtered list too
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Friend deleted successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete friend: $e')),
+      );
+    }
+  }
+
+
   // Get upcoming events count for a friend
   Future<int> _getUpcomingEventsCount(String Friend_firebaseUid) async {
     QuerySnapshot eventSnapshot = await FirebaseFirestore.instance
@@ -122,6 +153,10 @@ class _HomePageState extends State<HomePage> {
                       'userUid': widget.firebaseUid,
                       'friendUid': Friend_firebaseUid,
                     });
+                    await FirebaseFirestore.instance.collection('friends').add({
+                      'userUid': Friend_firebaseUid,
+                      'friendUid': widget.firebaseUid,
+                    });
 
                     // Add the friend to the list
                     setState(() {
@@ -169,10 +204,10 @@ class _HomePageState extends State<HomePage> {
 
     return snapshot.docs.first.id;
   }
-  void _navigateToProfile() {
+  void _navigateToEvent() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => ProfilePage(userId: widget.userId)),
+      MaterialPageRoute(builder: (context) => MyEventListPage(userId: widget.userId,firebaseUid:widget.firebaseUid)),
     );
   }
   // Navigate to friend's event list page
@@ -180,7 +215,7 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => MyEventListPage(userId: widget.userId),
+        builder: (context) => EventListPage(userId: widget.userId,firebaseUid:widget.firebaseUid,friendFirebaseUid:friendId),
       ),
     );
   }
@@ -213,16 +248,16 @@ class _HomePageState extends State<HomePage> {
             child: Row(
               children: [
                 Text(
-                  'My Profile',
+                  'Create Your Own Event',
                   style: GoogleFonts.poppins(
                     color: Colors.red,
                     fontWeight: FontWeight.w700,
-                    fontSize: 16,
+                    fontSize: 11,
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.person, color: Colors.red),
-                  onPressed: _navigateToProfile, // Navigate to profile page
+                  icon: Icon(Icons.event, color: Colors.red),
+                  onPressed: _navigateToEvent, // Navigate to profile page
                 ),
               ],
             ),
@@ -288,51 +323,60 @@ class _HomePageState extends State<HomePage> {
                 Expanded(
                   child: ListView.builder(
                     itemCount: filteredFriends.length,
-                    itemBuilder: (context, index) {
-                      final friend = filteredFriends[index];
-                      return GestureDetector(
-                        onTap: () => _navigateToFriendEvents(friend['id']),
-                        child: Card(
-                          color: Colors.black.withOpacity(0.6),
-                          margin: EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          elevation: 15,
-                          child: Padding(
-                            padding: const EdgeInsets.all(15.0),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 30,
-                                  backgroundImage: NetworkImage(friend['profilePic']),
-                                  backgroundColor: Colors.grey,
-                                ),
-                                SizedBox(width: 15),
-                                Expanded(
-                                  child: Text(
-                                    friend['name'],
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
+                      itemBuilder: (context, index) {
+                        final friend = filteredFriends[index];
+                        return GestureDetector(
+                          onTap: () => _navigateToFriendEvents(friend['id']),
+                          child: Card(
+                            color: Colors.black.withOpacity(0.6),
+                            margin: EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            elevation: 15,
+                            child: Padding(
+                              padding: const EdgeInsets.all(15.0),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 30,
+                                    backgroundImage: NetworkImage(friend['profilePic']),
+                                    backgroundColor: Colors.grey,
+                                  ),
+                                  SizedBox(width: 15),
+                                  Expanded(
+                                    child: Text(
+                                      friend['name'],
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                ),
-                                Text(
-                                  '${friend['upcomingEvents']} upcoming events',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.7),
-                                    fontSize: 14,
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        '${friend['upcomingEvents']} upcoming events',
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.7),
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: Icon(Icons.delete, color: Colors.red),
+                                        onPressed: () => _deleteFriend(friend['id']), // Call delete method
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
                   ),
                 ),
               ],

@@ -2,27 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'GiftList.dart'; // Import GiftListPage
 import 'user_profile.dart';
-import 'package:mobile_programming_project/Models/Database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore package
 
 class EventListPage extends StatefulWidget {
-  final int friendId; // Declare friendId to be received from the previous page
   final int userId;
+  final String firebaseUid;
+  final String friendFirebaseUid;
 
-  EventListPage({required this.friendId,required this.userId});
+  EventListPage({required this.userId, required this.firebaseUid, required this.friendFirebaseUid});
+
   @override
   _EventListPageState createState() => _EventListPageState();
 }
 
 class _EventListPageState extends State<EventListPage> {
-  DatabaseClass mydb = DatabaseClass();
   List<Map<String, dynamic>> events = [];
   String? _sortBy = 'name'; // Default sorting by name
+
   // Function to go to profile page
   void _goToProfile() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ProfilePage(userId: widget.userId),
+        builder: (context) => ProfilePage(userId: widget.userId, firebaseUid: widget.firebaseUid),
       ),
     );
   }
@@ -43,8 +45,6 @@ class _EventListPageState extends State<EventListPage> {
       _sortBy = criteria;
       if (criteria == 'name') {
         events.sort((a, b) => a['name']!.compareTo(b['name']!));
-      } else if (criteria == 'category') {
-        events.sort((a, b) => a['category']!.compareTo(b['category']!));
       } else if (criteria == 'status') {
         events.sort((a, b) => a['status']!.compareTo(b['status']!));
       } else if (criteria == 'date') {
@@ -52,25 +52,35 @@ class _EventListPageState extends State<EventListPage> {
       }
     });
   }
-  // Load events for the specific friend (friendId)
+
+  // Load events for the specific friend (friendFirebaseUid)
   Future<void> _loadEvents() async {
-    int friendId = widget.friendId; // Get the friendId passed from HomePage
-    List<Map<String, dynamic>> dbEvents = await mydb.getEventsForFriend(friendId); // Assuming you have a method to fetch events for a friend
+    String friendFirebaseUid = widget.friendFirebaseUid; // Get the friendFirebaseUid passed from the previous page
+    FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+    // Fetch events where userUid matches the friend's UID
+    QuerySnapshot querySnapshot = await firestore
+        .collection('events')
+        .where('userUid', isEqualTo: friendFirebaseUid)
+        .get();
+
     setState(() {
-      events = dbEvents.map((event) => {
-        'name': event['name'],
-        'category': event['category'],
-        'status': event['status'],
-        'date': event['date'],
+      events = querySnapshot.docs.map((doc) {
+        var eventData = doc.data() as Map<String, dynamic>;
+        return {
+          'name': eventData['name'],
+          'status': eventData['status'],
+          'date': eventData['date'],
+        };
       }).toList();
     });
   }
+
   @override
   void initState() {
     super.initState();
-    _loadEvents();  // Load events from the database
+    _loadEvents(); // Load events from Firestore
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +164,7 @@ class _EventListPageState extends State<EventListPage> {
                           _sortEvents(newValue);
                         }
                       },
-                      items: <String>['name', 'category', 'status', 'date']
+                      items: <String>['name', 'status', 'date']
                           .map<DropdownMenuItem<String>>((String value) {
                         return DropdownMenuItem<String>(
                           value: value,
@@ -192,7 +202,7 @@ class _EventListPageState extends State<EventListPage> {
                               style: TextStyle(color: Colors.white, fontSize: 18),
                             ),
                             subtitle: Text(
-                              'Category: ${event['category']} - Status: ${event['status']} - Date: ${event['date']}',
+                              'Status: ${event['status']} - Date: ${event['date']}',
                               style: TextStyle(color: Colors.white70),
                             ),
                           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mobile_programming_project/MyOwnGiftList.dart';
 import 'package:mobile_programming_project/Models/Database.dart';
 import 'user_profile.dart';
@@ -7,28 +8,32 @@ import 'user_profile.dart';
 class MyEventListPage extends StatefulWidget {
 
   final int userId;
+  final String firebaseUid;
 
-  MyEventListPage({required this.userId});
+  MyEventListPage({required this.userId,required this.firebaseUid});
 
   @override
   _MyEventListPageState createState() => _MyEventListPageState();
 }
 
 class _MyEventListPageState extends State<MyEventListPage> {
-  // Sample event data
   final db = DatabaseClass();
   List<Map<String, dynamic>> events = [];
   String? _sortBy = 'name'; // Default sorting by name
 
-  // Function to add a new event
-  void _goToProfile()
-  {
+  // Firestore reference
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final CollectionReference eventsCollection = FirebaseFirestore.instance.collection('events');
+
+  void _goToProfile() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ProfilePage(userId:widget.userId),
-      ),);
+        builder: (context) => ProfilePage(userId: widget.userId, firebaseUid: widget.firebaseUid),
+      ),
+    );
   }
+
   void _addEvent() {
     final nameController = TextEditingController();
     final categoryController = TextEditingController();
@@ -76,7 +81,15 @@ class _MyEventListPageState extends State<MyEventListPage> {
                     categoryController.text.isNotEmpty &&
                     statusController.text.isNotEmpty &&
                     dateController.text.isNotEmpty) {
+                  // Add event to local database
                   await _addEventToDatabase(
+                    nameController.text,
+                    categoryController.text,
+                    statusController.text,
+                    dateController.text,
+                  );
+                  // Add event to Firestore
+                  await _addEventToFirestore(
                     nameController.text,
                     categoryController.text,
                     statusController.text,
@@ -93,14 +106,22 @@ class _MyEventListPageState extends State<MyEventListPage> {
     );
   }
 
+  Future<void> _addEventToFirestore(String name, String category, String status, String date) async {
+    await eventsCollection.add({
+      'name': name,
+      'category': category,
+      'status': status,
+      'date': date,
+      'userUid': widget.firebaseUid, // Store the Firebase UID as reference
+    });
+  }
 
-  // Function to edit an event
   void _editEvent(int index) {
     final nameController = TextEditingController(text: events[index]['name']);
     final categoryController = TextEditingController(text: events[index]['location']);
     final statusController = TextEditingController(text: events[index]['description']);
     final dateController = TextEditingController(text: events[index]['date']);
-    int eventId = events[index]['ID']; // Event ID from database
+    int eventId = events[index]['ID'];
 
     showDialog(
       context: context,
@@ -133,7 +154,7 @@ class _MyEventListPageState extends State<MyEventListPage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context); // Close the dialog
+                Navigator.pop(context);
               },
               child: Text('Cancel'),
             ),
@@ -143,8 +164,7 @@ class _MyEventListPageState extends State<MyEventListPage> {
                     categoryController.text.isNotEmpty &&
                     statusController.text.isNotEmpty &&
                     dateController.text.isNotEmpty) {
-                  // Update the event in the database
-                  final db = DatabaseClass();
+                  // Update local database
                   await db.updateEvent(
                     eventId,
                     nameController.text,
@@ -152,11 +172,9 @@ class _MyEventListPageState extends State<MyEventListPage> {
                     statusController.text,
                     dateController.text,
                   );
-
-                  // Reload the events to reflect changes
-                  await _loadEvents();
-
-                  Navigator.pop(context); // Close the dialog
+                  // Update Firestore
+                  await _updateEventInFirestore(eventId, nameController.text, categoryController.text, statusController.text, dateController.text);
+                  Navigator.pop(context);
                 }
               },
               child: Text('Save Changes'),
@@ -167,31 +185,42 @@ class _MyEventListPageState extends State<MyEventListPage> {
     );
   }
 
-
-  // Function to delete an event
-  Future<void> _deleteEventFromDatabase(int eventId) async {
-    final db = DatabaseClass();
-    await db.deleteEvent(eventId); // Add a deleteEvent method in DatabaseClass
-    await _loadEvents(); // Refresh events after deletion
+  Future<void> _updateEventInFirestore(int eventId, String name, String category, String status, String date) async {
+    QuerySnapshot snapshot = await eventsCollection.where('eventId', isEqualTo: eventId).get();
+    if (snapshot.docs.isNotEmpty) {
+      DocumentSnapshot doc = snapshot.docs[0];
+      doc.reference.update({
+        'name': name,
+        'category': category,
+        'status': status,
+        'date': date,
+      });
+    }
   }
 
-  void _deleteEvent(int index) {
-    int eventId = events[index]['ID']; // Replace with actual column name for event ID
-    _deleteEventFromDatabase(eventId);
+  Future<void> _deleteEvent(int index) async {
+    int eventId = events[index]['ID'];
+    await _deleteEventFromDatabase(eventId);
+    await _deleteEventFromFirestore(eventId);
   }
 
+  Future<void> _deleteEventFromFirestore(int eventId) async {
+    QuerySnapshot snapshot = await eventsCollection.where('eventId', isEqualTo: eventId).get();
+    if (snapshot.docs.isNotEmpty) {
+      DocumentSnapshot doc = snapshot.docs[0];
+      doc.reference.delete();
+    }
+  }
 
-  // Function to navigate to GiftListPage
   void _goToGiftListPage(Map<String, dynamic> event) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => MyOwnGiftListPage(event), // Pass event data to GiftListPage
+        builder: (context) => MyOwnGiftListPage(event),
       ),
     );
   }
 
-  // Function to sort events based on selected criteria
   void _sortEvents(String criteria) {
     setState(() {
       _sortBy = criteria;
@@ -206,24 +235,44 @@ class _MyEventListPageState extends State<MyEventListPage> {
       }
     });
   }
-  Future<void> _loadEvents() async {
 
+  Future<void> _loadEvents() async {
     List<Map<String, dynamic>> userEvents = await db.getEventsForUser(widget.userId);
     setState(() {
       events = userEvents;
     });
+
+    // Optionally load events from Firestore as well and sync with local DB if necessary
+
+  }
+
+  Future<void> _loadEventsFromFirestore() async {
+    QuerySnapshot snapshot = await eventsCollection.where('userUid', isEqualTo: widget.firebaseUid).get();
+    for (var doc in snapshot.docs) {
+      // Add each Firestore event to the local DB if it's not already there
+      Map<String, dynamic> event = doc.data() as Map<String, dynamic>;
+      await db.insertEvent(event['name'], event['category'], event['status'], event['date'], widget.userId);
+    }
+    await _loadEvents(); // Refresh the local events list after syncing with Firestore
   }
 
   Future<void> _addEventToDatabase(String name, String category, String status, String date) async {
-    final db = DatabaseClass();
     await db.insertEvent(name, category, status, date, widget.userId);
     await _loadEvents(); // Refresh events after adding
   }
+
+  Future<void> _deleteEventFromDatabase(int eventId) async {
+    // Delete the event from local database
+    await db.deleteEvent(eventId);
+    await _loadEvents();
+  }
+
   @override
   void initState() {
     super.initState();
     _loadEvents();
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -270,7 +319,6 @@ class _MyEventListPageState extends State<MyEventListPage> {
       ),
       body: Stack(
         children: [
-          // Background Image
           Container(
             decoration: BoxDecoration(
               image: DecorationImage(
@@ -279,16 +327,13 @@ class _MyEventListPageState extends State<MyEventListPage> {
               ),
             ),
           ),
-          // Darker overlay for opacity
           Container(
             color: Colors.black.withOpacity(0.9),
           ),
-          // Main content area with padding
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // Sort Dropdown Button
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -322,7 +367,6 @@ class _MyEventListPageState extends State<MyEventListPage> {
                   ],
                 ),
                 SizedBox(height: 20),
-                // Add Event Button
                 ElevatedButton(
                   onPressed: _addEvent,
                   style: ElevatedButton.styleFrom(
@@ -345,7 +389,6 @@ class _MyEventListPageState extends State<MyEventListPage> {
                   ),
                 ),
                 SizedBox(height: 20),
-                // Event List
                 Expanded(
                   child: ListView.builder(
                     itemCount: events.length,
@@ -353,7 +396,7 @@ class _MyEventListPageState extends State<MyEventListPage> {
                       final event = events[index];
                       return GestureDetector(
                         onTap: () {
-                          _goToGiftListPage(event); // Navigate to GiftListPage on tap
+                          _goToGiftListPage(event);
                         },
                         child: Card(
                           color: Colors.black.withOpacity(0.6),
@@ -365,11 +408,11 @@ class _MyEventListPageState extends State<MyEventListPage> {
                           child: ListTile(
                             contentPadding: EdgeInsets.all(15),
                             title: Text(
-                              event['name'], // Replace with actual column name
+                              event['name'],
                               style: TextStyle(color: Colors.white, fontSize: 18),
                             ),
                             subtitle: Text(
-                              'Category: ${event['location']} - Status: ${event['description']} - Date: ${event['date']}', // Replace with actual column names
+                              'Category: ${event['location']} - Status: ${event['description']} - Date: ${event['date']}',
                               style: TextStyle(color: Colors.white70),
                             ),
                             trailing: Row(
@@ -377,7 +420,7 @@ class _MyEventListPageState extends State<MyEventListPage> {
                               children: [
                                 IconButton(
                                   icon: Icon(Icons.edit, color: Colors.white),
-                                  onPressed: () => _editEvent(index), // Edit on icon press
+                                  onPressed: () => _editEvent(index),
                                 ),
                                 IconButton(
                                   icon: Icon(Icons.delete, color: Colors.white),
@@ -390,8 +433,7 @@ class _MyEventListPageState extends State<MyEventListPage> {
                       );
                     },
                   ),
-                )
-
+                ),
               ],
             ),
           ),

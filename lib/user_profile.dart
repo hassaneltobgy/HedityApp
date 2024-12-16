@@ -1,67 +1,131 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';  // Import image picker package
-import 'dart:io';  // For handling picked images
-import 'myPledgedGiftsPage.dart'; // Import My Pledged Gifts Page
-import 'MyOwnGiftList.dart'; // Import GiftListPage (make sure this matches your file path)
-import 'MyEventListPage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mobile_programming_project/Models/Database.dart';
+import 'myPledgedGiftsPage.dart';
+import 'MyEventListPage.dart';
 
 class ProfilePage extends StatefulWidget {
-
   final int userId;
+  final String firebaseUid;
 
-  ProfilePage({required this.userId});
+  ProfilePage({required this.userId, required this.firebaseUid});
+
   @override
   _ProfilePageState createState() => _ProfilePageState();
 }
 
 class _ProfilePageState extends State<ProfilePage> {
   // Controllers for personal information fields
-  TextEditingController nameController = TextEditingController(text: 'John Doe');
-  TextEditingController emailController = TextEditingController(text: 'johndoe@example.com');
-  TextEditingController dobController = TextEditingController(text: '1990-01-01');
-  TextEditingController genderController = TextEditingController(text: 'Male');
-  TextEditingController nationalityController = TextEditingController(text: 'American');
-  TextEditingController notificationController = TextEditingController(text: 'Email');
-  final DatabaseClass mydb = DatabaseClass();// New Controller for Preferred Notification
+  TextEditingController nameController = TextEditingController();
+  TextEditingController emailController = TextEditingController();
+  TextEditingController dobController = TextEditingController();
+  TextEditingController genderController = TextEditingController();
+  TextEditingController nationalityController = TextEditingController();
+  TextEditingController notificationController = TextEditingController();
+  TextEditingController imageController=TextEditingController();
+  final DatabaseClass mydb = DatabaseClass();
 
-  // Variable to store the profile picture
-  File? _profileImage;
+  String _profileImagePath = 'assets/Images/default_user_image.png'; // Default profile image
 
-  // Function to pick an image from the gallery or camera
-  Future<void> _pickImage() async {
-    final ImagePicker _picker = ImagePicker();
-
-    // Show options to choose from gallery or camera
-    final XFile? pickedFile = await _picker.pickImage(
-      source: ImageSource.gallery,  // You can also use ImageSource.camera to allow the user to take a picture
-    );
-
-    if (pickedFile != null) {
-      setState(() {
-        _profileImage = File(pickedFile.path);  // Update profile picture with the selected image
-      });
-    }
-  }
-
-
-  Future<void> _loadUserData() async {
-    final userData = await mydb.getUserById(widget.userId);
-    setState(() {
-      nameController.text = userData['name'];
-      emailController.text = userData['email'];
-      dobController.text = userData['date_of_birth'] ?? '';
-      genderController.text = userData['gender'] ?? '';
-      nationalityController.text = userData['nationality'] ?? '';
-      notificationController.text = userData['notification'] ?? '';
-    });
-  }
   @override
   void initState() {
     super.initState();
     _loadUserData();
   }
+
+  Future<void> _loadUserData() async {
+    final userData = await mydb.getUserById(widget.userId);
+    setState(() {
+      nameController.text = userData['name'] ?? '';
+      emailController.text = userData['email'] ?? '';
+      dobController.text = userData['date_of_birth'] ?? '';
+      genderController.text = userData['gender'] ?? '';
+      nationalityController.text = userData['nationality'] ?? '';
+      notificationController.text = userData['notification'] ?? '';
+      imageController.text = userData['image_path'] ?? 'assets/Images/John.jpg';
+    });
+  }
+
+  Future<void> _updateProfileImage(String newPath) async {
+    setState(() {
+      imageController.text = newPath;
+    });
+    await mydb.updateUserImage(widget.userId, newPath); // Update SQLite database
+    await FirebaseFirestore.instance
+        .collection('Users')
+        .doc(widget.firebaseUid)
+        .update({'image_path': newPath}); // Update Firestore
+  }
+
+  Future<void> _updateUserInfo() async {
+    final updatedData = {
+      'name': nameController.text,
+      'email': emailController.text,
+      'date_of_birth': dobController.text,
+      'gender': genderController.text,
+      'nationality': nationalityController.text,
+      'notification': notificationController.text,
+      'image_path':imageController.text,
+    };
+
+    await mydb.updateUser(userId:widget.userId,name: nameController.text,
+      email: emailController.text,
+        dateOfBirth: dobController.text,
+      gender: genderController.text,
+      nationality: nationalityController.text,
+      notification: notificationController.text,imagePath:imageController.text ); // Update SQLite database
+    await FirebaseFirestore.instance
+        .collection('Users')
+        .doc(widget.firebaseUid)
+        .update(updatedData); // Update Firestore
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('User information updated successfully!')),
+    );
+  }
+
+  void _showImageSelectionDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Select Profile Picture', style: TextStyle(color: Colors.red)),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildImageOption('assets/Images/John.jpg'),
+                _buildImageOption('assets/Images/Jane.jpg'),
+                _buildImageOption('assets/Images/alice.jpg'),
+                _buildImageOption('assets/Images/male.png'),
+                _buildImageOption('assets/Images/female.png'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildImageOption(String imagePath) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundImage: AssetImage(imageController.text),
+      ),
+      title: Text(imagePath.split('/').last),
+      onTap: () {
+        _updateProfileImage(imagePath);
+        Navigator.pop(context);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -109,12 +173,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   // User Profile Picture Section
                   Center(
                     child: GestureDetector(
-                      onTap: _pickImage,  // Allow the user to tap the profile picture to change it
+                      onTap: _showImageSelectionDialog, // Open image selection dialog
                       child: CircleAvatar(
                         radius: 60,
-                        backgroundImage: _profileImage == null
-                            ? AssetImage('assets/Images/John.jpg') // Default image if no profile picture
-                            : FileImage(_profileImage!) as ImageProvider,  // Display the selected image
+                        backgroundImage: AssetImage(_profileImagePath),
                         backgroundColor: Colors.grey[800],
                       ),
                     ),
@@ -164,18 +226,13 @@ class _ProfilePageState extends State<ProfilePage> {
                             labelText: 'Nationality',
                           ),
                           _buildTextField(
-                            controller: notificationController, // New TextField
+                            controller: notificationController,
                             labelText: 'Preferred Way of Notification',
                           ),
                           SizedBox(height: 20),
                           Center(
                             child: ElevatedButton(
-                              onPressed: () {
-                                setState(() {
-                                  // UI updates automatically since the values in controllers are updated
-                                  // No additional logic required here
-                                });
-                              },
+                              onPressed: _updateUserInfo, // Update user info
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.red,
                                 foregroundColor: Colors.white,
@@ -192,6 +249,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ],
                       ),
+
                     ),
                   ),
                   // User's Created Events Section
@@ -228,7 +286,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   Navigator.push(
                                     context,
 
-                                    MaterialPageRoute(builder: (context) => MyEventListPage(userId:widget.userId)),
+                                    MaterialPageRoute(builder: (context) => MyEventListPage(userId:widget.userId,firebaseUid: widget.firebaseUid,)),
                                   );
                                 },
                               );
@@ -257,8 +315,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     child: Text(
                       'View My Pledged Gifts',
                       style: GoogleFonts.poppins(fontSize: 14),
-                    ),
-                  ),
+                     ),
+                     ),
                 ],
               ),
             ),
@@ -279,7 +337,7 @@ class _ProfilePageState extends State<ProfilePage> {
         style: TextStyle(color: Colors.white),
         decoration: InputDecoration(
           labelText: labelText,
-          labelStyle: TextStyle(color: Colors.red, fontWeight: FontWeight.bold), // Bold and red label
+          labelStyle: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
           filled: true,
           fillColor: Colors.black.withOpacity(0.4),
           border: OutlineInputBorder(

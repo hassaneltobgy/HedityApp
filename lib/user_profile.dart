@@ -301,7 +301,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => PledgedGiftsPage()),
+                        MaterialPageRoute(builder: (context) => PledgedGiftsPage(firebaseUid: widget.firebaseUid)),
                       );
                     },
                     style: ElevatedButton.styleFrom(

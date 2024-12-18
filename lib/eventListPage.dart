@@ -34,7 +34,7 @@ class _EventListPageState extends State<EventListPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => GiftListPage(event: event), // Pass event data to GiftListPage
+        builder: (context) => GiftListPage(event: event,firebaseUid: widget.firebaseUid,friendFirebaseUid: widget.friendFirebaseUid), // Pass event data to GiftListPage
       ),
     );
   }

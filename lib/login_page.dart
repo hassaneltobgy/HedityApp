@@ -274,7 +274,7 @@ class _LoginPageState extends State<LoginPage> {
             giftData['price']?.toDouble() ?? 0.0,
             giftData['image_path'] ?? '',
             localeventid!, // Assuming eventId can be converted to int
-            giftData['is_pledged'] == true ? 1 : 0,
+            giftData['status'] ,
           );
         }
       }

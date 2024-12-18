@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'PurchasedGifts.dart';
+import 'package:mobile_programming_project/Models/Database.dart';
+import 'user_profile.dart';
 
-class PledgedGiftsPage extends StatefulWidget {
+class PurchasedGiftsPage extends StatefulWidget {
+
   final String firebaseUid;
-  PledgedGiftsPage({required this.firebaseUid});
+  PurchasedGiftsPage({required this.firebaseUid});
 
   @override
-  _PledgedGiftsPageState createState() => _PledgedGiftsPageState();
+  _PurchasedGiftsPageState createState() => _PurchasedGiftsPageState();
 }
 
-class _PledgedGiftsPageState extends State<PledgedGiftsPage> {
+class _PurchasedGiftsPageState extends State<PurchasedGiftsPage> {
   late Future<List<Map<String, dynamic>>> pledgedGiftsFuture;
+  final DatabaseClass mydb = DatabaseClass();
 
   @override
   void initState() {
@@ -23,9 +26,9 @@ class _PledgedGiftsPageState extends State<PledgedGiftsPage> {
   /// Fetch pledged gifts based on `firebaseUid`.
   Future<List<Map<String, dynamic>>> _fetchPledgedGifts() async {
     try {
-      // Step 1: Get FireBaseGiftIDs from pledged_gifts where firebaseUid matches
+      // Step 1: Get FireBaseGiftIDs from purchased_gifts where firebaseUid matches
       QuerySnapshot pledgedGiftsSnapshot = await FirebaseFirestore.instance
-          .collection('pledged_gifts')
+          .collection('purchased_gifts')
           .where('firebaseUid', isEqualTo: widget.firebaseUid)
           .get();
 
@@ -51,12 +54,13 @@ class _PledgedGiftsPageState extends State<PledgedGiftsPage> {
       return [];
     }
   }
-  void _navigateToPurchasedGifts() {
 
+  void _navigateToMyProfile()async {
+      int userId= await mydb.NewgetIdByFirebaseUid(widget.firebaseUid);
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => PurchasedGiftsPage( firebaseUid:widget.firebaseUid),
+        builder: (context) => ProfilePage(userId:userId, firebaseUid:widget.firebaseUid),
       ),
     );
   }
@@ -65,7 +69,7 @@ class _PledgedGiftsPageState extends State<PledgedGiftsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
+      appBar:  AppBar(
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: Colors.red),
           onPressed: () {
@@ -73,42 +77,22 @@ class _PledgedGiftsPageState extends State<PledgedGiftsPage> {
           },
         ),
         title: Text(
-          'My Pledged Gifts',
+          'My Purchased Gifts',
           style: GoogleFonts.poppins(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
+            color: Colors.red,
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
           ),
         ),
         backgroundColor: Colors.black,
         elevation: 5,
         actions: [
-          Row(
-            children: [
-              // Use MediaQuery to get the available width
-              SizedBox(
-                width: MediaQuery.of(context).size.width * 0.25, // Adjust this value based on your layout
-                child: Text(
-                  'Purchased Gifts',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 12,
-                  ),
-                  overflow: TextOverflow.ellipsis,  // Ensures text doesn't overflow
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.card_giftcard, color: Colors.red),
-                onPressed: _navigateToPurchasedGifts,
-              ),
-            ],
+          IconButton(
+            icon: Icon(Icons.account_circle, color: Colors.red),
+            onPressed: _navigateToMyProfile,
           ),
         ],
-      )
-
-
-      ,
+      ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: pledgedGiftsFuture,
         builder: (context, snapshot) {
@@ -143,7 +127,7 @@ class _PledgedGiftsPageState extends State<PledgedGiftsPage> {
               itemCount: pledgedGifts.length,
               itemBuilder: (context, index) {
                 final gift = pledgedGifts[index];
-              print('$gift');
+                print('$gift');
                 return Card(
                   color: Colors.black.withOpacity(0.6),
                   margin: EdgeInsets.symmetric(vertical: 10, horizontal: 16),

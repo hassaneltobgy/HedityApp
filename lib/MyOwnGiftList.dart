@@ -152,6 +152,20 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
 
   // Edit an existing gift
   void _editGift(Map<String, dynamic> gift) {
+
+    // Check if the gift is available for editing (status == 0)
+    //if status !=0 means gift is either pledged or  purchased
+    if (gift['status'] != 0) {
+      // Show a message to the user that the gift is either pledged or purchased
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('This gift cannot be edited because it is pledged or purchased.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return; // Exit the function if the gift is not available for editing
+    }
+
     final nameController = TextEditingController(text: gift['name']);
     final descriptionController = TextEditingController(text: gift['description']);
     final categoryController = TextEditingController(text: gift['category']);
@@ -217,6 +231,17 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
   }
 
   void _deleteGift(int giftId) async {
+  int status=await db.getGiftStatus(giftId);
+    if (status != 0) {
+      // Show a message to the user that the gift is either pledged or purchased
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('This gift cannot be deleted because it is pledged or purchased.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return; // Exit the function if the gift is not available for editing
+    }
     await db.deleteGift(giftId);
     await _loadGifts(); // Refresh after deletion
   }
@@ -239,7 +264,11 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
           .get();
 
       for (var doc in snapshot.docs) {
-        await firestore.collection('gifts').doc(doc.id).delete();
+        int status = doc['status'];
+        if (status == 0) {
+          await firestore.collection('gifts').doc(doc.id).delete();
+        }
+
       }
       }
 
@@ -255,18 +284,21 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
         'image_path': imagePath,  // Save the image path
         'event_id': eventId,
         'status':is_pledged,*/
-        DocumentReference docRef = await firestore.collection('gifts').add({
-          'name': gift['name'],
-          'description': gift['description'],
-          'category': gift['category'],
-          'price': gift['price'],
-          'image_path': gift['image_path'],
-          'event_id':firebaseEventUid,
-          'status': gift['status'],
-        });
+        int status = gift['status'];
+        if(status==0) {
+          DocumentReference docRef = await firestore.collection('gifts').add({
+            'name': gift['name'],
+            'description': gift['description'],
+            'category': gift['category'],
+            'price': gift['price'],
+            'image_path': gift['image_path'],
+            'event_id': firebaseEventUid,
+            'status': gift['status'],
+          });
 
-        // Update firebaseUid in the local database
-        await db.updateGiftFirebaseUid(gift['ID'], docRef.id);
+          // Update firebaseUid in the local database
+          await db.updateGiftFirebaseUid(gift['ID'], docRef.id);
+        }
       }
 
       // Reload gifts to reflect the updated firebaseUid

@@ -8,8 +8,10 @@ import 'MyOwnGiftDetailsPage.dart' ;
 
 class GiftListPage extends StatefulWidget {
   final Map<String, dynamic> event; // Entire event object passed
-
-  GiftListPage({required this.event});
+  final String firebaseUid;
+  final String friendFirebaseUid;
+//required this.firebaseUid, required this.friendFirebaseUid}
+  GiftListPage({required this.event,required this.firebaseUid, required this.friendFirebaseUid});
 
   @override
   _GiftListPageState createState() => _GiftListPageState();
@@ -53,17 +55,130 @@ class _GiftListPageState extends State<GiftListPage> {
       print('Error fetching gifts: $e');
     }
   }
-
-  void _togglePledge(int index) {
-    setState(() {
-      gifts[index]['status'] = !gifts[index]['status'];
-      if (gifts[index]['status']) {
-        globalPledgedGifts.add(gifts[index]);
-      } else {
-        globalPledgedGifts.removeWhere((gift) => gift['name'] == gifts[index]['name']);
-      }
-    });
+  Color _getButtonColor(int status) {
+    if (status == 0) {
+      return Colors.grey; // Available
+    } else if (status == 1) {
+      return Colors.green; // Pledged
+    } else if (status == 2) {
+      return Colors.red; // Purchased
+    }
+    return Colors.grey; // Default
   }
+  String _getButtonText(int status) {
+    if (status == 0) {
+      return "Pledge"; // Available
+    } else if (status == 1) {
+      return "Pledged"; // Already pledged
+    } else if (status == 2) {
+      return "Purchased"; // Purchased
+    }
+    return "Pledge"; // Default
+  }
+
+  Future<void> _togglePledge(int index) async {
+    final gift = gifts[index];
+    final giftId = gift['FireBaseGiftID'];
+    final currentStatus = gift['status'];
+
+    try {
+      if (currentStatus == 0) {
+        // Transition from status 0 to 1 (Pledged)
+        await FirebaseFirestore.instance.collection('pledged_gifts').add({
+          'firebaseUid': widget.firebaseUid,         // User who pledged
+          'friendFirebaseUid': widget.friendFirebaseUid, // Friend whose gift is pledged
+          'FireBaseGiftID': giftId,                 // Gift ID
+        });
+
+        await FirebaseFirestore.instance.collection('gifts').doc(giftId).update({
+          'status': 1,
+        });
+
+        setState(() {
+          gifts[index]['status'] = 1; // Update local UI
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gift marked as pledged.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+
+        print('Gift pledged successfully!');
+      } else if (currentStatus == 1) {
+        // Check if the current user is the one who pledged the gift
+        final querySnapshot = await FirebaseFirestore.instance
+            .collection('pledged_gifts')
+            .where('FireBaseGiftID', isEqualTo: giftId)
+            .limit(1)
+            .get();
+
+        if (querySnapshot.docs.isNotEmpty) {
+          final pledgedGift = querySnapshot.docs.first.data();
+          final pledgedBy = pledgedGift['firebaseUid'];
+
+          if (pledgedBy == widget.firebaseUid) {
+            // Current user is the one who pledged; allow transition to status 2 (Purchased)
+            await FirebaseFirestore.instance.collection('gifts').doc(giftId).update({
+              'status': 2,
+            });
+
+            setState(() {
+              gifts[index]['status'] = 2; // Update local UI
+            });
+            // Now, remove the gift from the 'pledged_gifts' collection as it has been purchased
+            await FirebaseFirestore.instance.collection('pledged_gifts').where('firebaseUid', isEqualTo: widget.firebaseUid)
+                .where('friendFirebaseUid', isEqualTo: widget.friendFirebaseUid)
+                .where('FireBaseGiftID', isEqualTo: giftId)
+                .get()
+                .then((snapshot) async {
+              if (snapshot.docs.isNotEmpty) {
+                for (var doc in snapshot.docs) {
+                  await FirebaseFirestore.instance.collection('pledged_gifts').doc(doc.id).delete();
+                }
+              }
+            });
+
+            //  Add the gift to the 'purchased_gifts' collection
+            await  FirebaseFirestore.instance..collection('purchased_gifts').add({
+              'firebaseUid': widget.firebaseUid,
+              'friendFirebaseUid': widget.friendFirebaseUid,
+              'FireBaseGiftID': giftId,
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Gift marked as purchased.'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            // Optionally, you can show a message to the user that the gift has been marked as purchased
+
+            print('Gift marked as purchased!');
+          } else {
+            // Someone else pledged the gift; show error message
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('This gift has already been pledged by someone else.'),
+            ));
+          }
+        }
+      } else if (currentStatus == 2) {
+        // Gift is already purchased; no action allowed
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('This gift has already been purchased.'),
+        ));
+      }
+    } catch (e) {
+      print('Error updating gift status: $e');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('An error occurred. Please try again later.'),
+      ));
+    }
+  }
+
+
+
 
   void _navigateToGiftDetails(Map<String, dynamic> gift) {
     Navigator.push(
@@ -77,7 +192,7 @@ class _GiftListPageState extends State<GiftListPage> {
   void _navigateToPledgedGiftsPage() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => PledgedGiftsPage()),
+      MaterialPageRoute(builder: (context) => PledgedGiftsPage(firebaseUid:widget.firebaseUid)),
     );
   }
 
@@ -231,18 +346,19 @@ class _GiftListPageState extends State<GiftListPage> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
+                                  // The pledge button
                                   TextButton(
                                     style: TextButton.styleFrom(
-                                      backgroundColor: (gift['status'] == 1) ? Colors.red : Colors.grey, // Changes button color
+                                      backgroundColor: _getButtonColor(gift['status']),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8), // Optional rounded corners
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
                                     ),
-                                    onPressed: () => _togglePledge(index),
+                                    onPressed: () =>_togglePledge(index),
                                     child: Text(
-                                      "Pledge",
+                                      _getButtonText(gift['status']),
                                       style: GoogleFonts.poppins(
-                                        color: Colors.white, // Text color stays white for contrast
+                                        color: Colors.white,
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -254,6 +370,7 @@ class _GiftListPageState extends State<GiftListPage> {
                           ),
                         ),
                       );
+
                     },
                   ),
                 ),

@@ -125,6 +125,20 @@ class DatabaseClass {
 
     return result.isNotEmpty; // Return true if user exists, false otherwise
   }
+  Future<int> NewgetIdByFirebaseUid(String firebaseUid) async {
+    final db = await MyDataBase; // Assuming MyDataBase is your database reference
+
+    // Query the table and fetch the ID where firebaseUid matches the given value
+    List<Map<String, dynamic>> result = await db!.query(
+      'Users',
+      columns: ['ID'], // Select only the ID column
+      where: 'firebaseUid = ?', // Use where to filter by firebaseUid
+      whereArgs: [firebaseUid], // Bind the firebaseUid to the query
+    );
+
+    // Since firebaseUid is guaranteed to exist in the database, we can return the ID directly
+    return result.first['ID'];
+  }
 
   //Register -->  related Function
   Future<int> insertUser(String name, String email, String password, String dob, String gender, String preferences, String notification, String firebaseUid,String phoneno) async {
@@ -512,6 +526,21 @@ class DatabaseClass {
       whereArgs: [giftId],
     );
   }
+  Future<int> getGiftStatus(int giftId) async {
+    final db = await MyDataBase;
+
+    // Query the 'Gifts' table for the 'status' column where 'ID' matches the provided giftId
+    List<Map> result = await db!.query(
+      'Gifts', // The table name
+      columns: ['status'], // We only want the 'status' column
+      where: 'ID = ?', // Filter by 'ID'
+      whereArgs: [giftId], // Pass the giftId as the argument
+    );
+
+    // Since the 'status' column is not nullable, we can safely access it
+    return result.first['status'] as int;
+  }
+
 
   // Get all gifts for a specific event
   Future<List<Map<String, dynamic>>> getGiftsForEvent(int eventId) async {

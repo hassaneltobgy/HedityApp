@@ -231,14 +231,7 @@ class _HomePageState extends State<HomePage> {
             Navigator.pop(context);
           },
         ),
-        title: Text(
-          'Friends List',
-          style: GoogleFonts.poppins(
-            color: Colors.red,
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
-          ),
-        ),
+
         backgroundColor: Colors.black,
         elevation: 5,
         actions: [
@@ -320,6 +313,14 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 SizedBox(height: 20),
+                Text(
+                  'List of Friends: ',
+                  style: GoogleFonts.poppins(
+                    color: Colors.red,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 Expanded(
                   child: ListView.builder(
                     itemCount: filteredFriends.length,

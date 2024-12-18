@@ -35,10 +35,14 @@ class _MyEventListPageState extends State<MyEventListPage> {
   }
 
   void _addEvent() {
+
     final nameController = TextEditingController();
     final categoryController = TextEditingController();
     final statusController = TextEditingController();
     final dateController = TextEditingController();
+    final descriptionController=TextEditingController();
+    final locationController =TextEditingController();
+
 
     showDialog(
       context: context,
@@ -58,12 +62,16 @@ class _MyEventListPageState extends State<MyEventListPage> {
                   decoration: InputDecoration(labelText: 'Category'),
                 ),
                 TextField(
-                  controller: statusController,
-                  decoration: InputDecoration(labelText: 'Status'),
+                  controller: descriptionController,
+                  decoration: InputDecoration(labelText: 'Description'),
                 ),
                 TextField(
                   controller: dateController,
                   decoration: InputDecoration(labelText: 'Date'),
+                ),
+                TextField(
+                  controller: locationController,
+                  decoration: InputDecoration(labelText: 'Location'),
                 ),
               ],
             ),
@@ -77,25 +85,63 @@ class _MyEventListPageState extends State<MyEventListPage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.isNotEmpty &&
-                    categoryController.text.isNotEmpty &&
-                    statusController.text.isNotEmpty &&
-                    dateController.text.isNotEmpty) {
-                  // Add event to local database
+                String name = nameController.text;
+                String category = categoryController.text;
+                String status = statusController.text;
+                String date = dateController.text;
+                String description = descriptionController.text;
+                String location = locationController.text;
+
+                // Check if name is valid (text only)
+                if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(name)) {
+                  // If name contains non-text characters
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Name should only contain letters and spaces')),
+                  );
+                  return;
+                }
+
+                // Check if date is in the correct format (yyyy-MM-dd)
+                if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date)) {
+                  // If date format is invalid
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Date should be in the format yyyy-MM-dd')),
+                  );
+                  return;
+                }
+
+                // Parse the date and compare with today's date
+                DateTime enteredDate = DateTime.parse(date);
+                DateTime today = DateTime.now();
+                if (enteredDate.isAtSameMomentAs(today)) {
+                  status = 'Current';
+                } else if (enteredDate.isAfter(today)) {
+                  status = 'Upcoming';
+                } else {
+                  status = 'Past';
+                }
+
+                // Check if all fields are filled
+                if (name.isNotEmpty && category.isNotEmpty && status.isNotEmpty &&
+                    date.isNotEmpty && description.isNotEmpty && location.isNotEmpty) {
+
+                  // Add to Firestore first
+
+                  String firebaseUid = await _addEventToFirestore(
+                    name, category, status, date,description,location
+                  );
+
                   await _addEventToDatabase(
-                    nameController.text,
-                    categoryController.text,
-                    statusController.text,
-                    dateController.text,
+                    name, firebaseUid, category, status, date,location,description
                   );
-                  // Add event to Firestore
-                  await _addEventToFirestore(
-                    nameController.text,
-                    categoryController.text,
-                    statusController.text,
-                    dateController.text,
-                  );
+
+                  // Close the dialog
                   Navigator.pop(context);
+                } else {
+                  // Show error if any required field is empty
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Please fill all the fields')),
+                  );
                 }
               },
               child: Text('Add Event'),
@@ -106,22 +152,30 @@ class _MyEventListPageState extends State<MyEventListPage> {
     );
   }
 
-  Future<void> _addEventToFirestore(String name, String category, String status, String date) async {
-    await eventsCollection.add({
+
+  Future<String> _addEventToFirestore(String name, String category, String status, String date,String description,String location) async {
+    DocumentReference docRef = await eventsCollection.add({
       'name': name,
       'category': category,
       'status': status,
       'date': date,
+      'description':description,
+      'location':location,
       'userUid': widget.firebaseUid, // Store the Firebase UID as reference
     });
+    return docRef.id; // Return the document ID
   }
+
 
   void _editEvent(int index) {
     final nameController = TextEditingController(text: events[index]['name']);
-    final categoryController = TextEditingController(text: events[index]['location']);
-    final statusController = TextEditingController(text: events[index]['description']);
+    final categoryController = TextEditingController(text: events[index]['category']);
+    final statusController = TextEditingController(text: events[index]['status']);
     final dateController = TextEditingController(text: events[index]['date']);
+    final descriptionController=TextEditingController(text: events[index]['description']);
+    final locationController =TextEditingController(text: events[index]['location']);
     int eventId = events[index]['ID'];
+    String eventfirebaseId=events[index]['firebaseUid'];
 
     showDialog(
       context: context,
@@ -141,12 +195,16 @@ class _MyEventListPageState extends State<MyEventListPage> {
                   decoration: InputDecoration(labelText: 'Category'),
                 ),
                 TextField(
-                  controller: statusController,
-                  decoration: InputDecoration(labelText: 'Status'),
-                ),
-                TextField(
                   controller: dateController,
                   decoration: InputDecoration(labelText: 'Date'),
+                ),
+                TextField(
+                  controller: descriptionController,
+                  decoration: InputDecoration(labelText: 'Description'),
+                ),
+                TextField(
+                  controller: locationController,
+                  decoration: InputDecoration(labelText: 'Location'),
                 ),
               ],
             ),
@@ -160,21 +218,68 @@ class _MyEventListPageState extends State<MyEventListPage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.isNotEmpty &&
-                    categoryController.text.isNotEmpty &&
-                    statusController.text.isNotEmpty &&
-                    dateController.text.isNotEmpty) {
-                  // Update local database
+                String name = nameController.text;
+                String category = categoryController.text;
+                String status = statusController.text;
+                String date = dateController.text;
+                String description = descriptionController.text;
+                String location = locationController.text;
+
+                // Check if name is valid (text only)
+                if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(name)) {
+                  // If name contains non-text characters
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Name should only contain letters and spaces')),
+                  );
+                  return;
+                }
+
+                // Check if date is in the correct format (yyyy-MM-dd)
+                if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date)) {
+                  // If date format is invalid
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Date should be in the format yyyy-MM-dd')),
+                  );
+                  return;
+                }
+
+                // Parse the date and compare with today's date
+                DateTime enteredDate = DateTime.parse(date);
+                DateTime today = DateTime.now();
+                if (enteredDate.isAtSameMomentAs(today)) {
+                  status = 'Current';
+                } else if (enteredDate.isAfter(today)) {
+                  status = 'Upcoming';
+                } else {
+                  status = 'Past';
+                }
+
+                // Check if all fields are filled
+                if (name.isNotEmpty && category.isNotEmpty && status.isNotEmpty &&
+                    date.isNotEmpty && description.isNotEmpty && location.isNotEmpty) {
+
+                  // Add to Firestore first
+
+                  print('$eventId');
+
                   await db.updateEvent(
                     eventId,
-                    nameController.text,
-                    categoryController.text,
-                    statusController.text,
-                    dateController.text,
+                    name,
+                    category,
+                    location,
+                    status,
+                      date,
+                      description,
                   );
                   // Update Firestore
-                  await _updateEventInFirestore(eventId, nameController.text, categoryController.text, statusController.text, dateController.text);
+                  await _updateEventInFirestore(eventfirebaseId, name, category, location ,status,date,description);
                   Navigator.pop(context);
+                  await _loadEvents();
+                } else {
+                  // Show error if any required field is empty
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Please fill all the fields')),
+                  );
                 }
               },
               child: Text('Save Changes'),
@@ -185,31 +290,38 @@ class _MyEventListPageState extends State<MyEventListPage> {
     );
   }
 
-  Future<void> _updateEventInFirestore(int eventId, String name, String category, String status, String date) async {
-    QuerySnapshot snapshot = await eventsCollection.where('eventId', isEqualTo: eventId).get();
-    if (snapshot.docs.isNotEmpty) {
-      DocumentSnapshot doc = snapshot.docs[0];
-      doc.reference.update({
+  Future<void> _updateEventInFirestore(
+      String eventfirebaseId, String name, String category,String location, String status, String date,String description) async {
+    // Directly reference the document with the given eventfirebaseId
+    DocumentReference docRef = eventsCollection.doc(eventfirebaseId);
+
+    try {
+      // Update the specified fields in the document
+      await docRef.update({
         'name': name,
         'category': category,
-        'status': status,
+        'location':location,
+        'status':status,
         'date': date,
+        'description':description,
       });
+      print('Event updated successfully in Firestore.');
+    } catch (e) {
+      print('Error updating event in Firestore: $e');
     }
   }
+
 
   Future<void> _deleteEvent(int index) async {
     int eventId = events[index]['ID'];
+    String eventfirebaseId=events[index]['firebaseUid'];
     await _deleteEventFromDatabase(eventId);
-    await _deleteEventFromFirestore(eventId);
+    await _deleteEventFromFirestore(eventfirebaseId);
   }
 
-  Future<void> _deleteEventFromFirestore(int eventId) async {
-    QuerySnapshot snapshot = await eventsCollection.where('eventId', isEqualTo: eventId).get();
-    if (snapshot.docs.isNotEmpty) {
-      DocumentSnapshot doc = snapshot.docs[0];
-      doc.reference.delete();
-    }
+  Future<void> _deleteEventFromFirestore(String eventfirebaseId) async {
+    DocumentReference docRef = eventsCollection.doc(eventfirebaseId);
+    docRef.delete();
   }
 
   void _goToGiftListPage(Map<String, dynamic> event) {
@@ -246,18 +358,15 @@ class _MyEventListPageState extends State<MyEventListPage> {
 
   }
 
-  Future<void> _loadEventsFromFirestore() async {
-    QuerySnapshot snapshot = await eventsCollection.where('userUid', isEqualTo: widget.firebaseUid).get();
-    for (var doc in snapshot.docs) {
-      // Add each Firestore event to the local DB if it's not already there
-      Map<String, dynamic> event = doc.data() as Map<String, dynamic>;
-      await db.insertEvent(event['name'], event['category'], event['status'], event['date'], widget.userId);
-    }
-    await _loadEvents(); // Refresh the local events list after syncing with Firestore
-  }
+  /*                String name = nameController.text;
+                String category = categoryController.text;
+                String status = statusController.text;
+                String date = dateController.text;
+                String description = descriptionController.text;
+                String location = locationController.text;_*/
 
-  Future<void> _addEventToDatabase(String name, String category, String status, String date) async {
-    await db.insertEvent(name, category, status, date, widget.userId);
+  Future<void> _addEventToDatabase(String name,String firebaseUid, String category, String status, String date,String location,String description) async {
+    await db.insertEvent(name, firebaseUid, category, status, date, location,description,widget.userId);
     await _loadEvents(); // Refresh events after adding
   }
 
@@ -412,7 +521,7 @@ class _MyEventListPageState extends State<MyEventListPage> {
                               style: TextStyle(color: Colors.white, fontSize: 18),
                             ),
                             subtitle: Text(
-                              'Category: ${event['location']} - Status: ${event['description']} - Date: ${event['date']}',
+                              'Category: ${event['category']} - Status: ${event['status']} - Date: ${event['date']}',
                               style: TextStyle(color: Colors.white70),
                             ),
                             trailing: Row(

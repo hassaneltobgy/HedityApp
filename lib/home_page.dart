@@ -102,7 +102,7 @@ class _HomePageState extends State<HomePage> {
     QuerySnapshot eventSnapshot = await FirebaseFirestore.instance
         .collection('events')
         .where('userUid', isEqualTo: Friend_firebaseUid)
-        .where('status', whereIn: ['current', 'upcoming'])
+        .where('status', whereIn: ['Upcoming'])
         .get();
 
     return eventSnapshot.docs.length;

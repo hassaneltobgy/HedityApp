@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile_programming_project/Models/Database.dart'; // Make sure to import the Database class
 
 class GiftDetailsPage extends StatefulWidget {
-  final Map<String, dynamic> gift;  // Receive the whole gift object
-
-  GiftDetailsPage({required this.gift});  // Constructor to receive gift
+  final Map<String, dynamic> gift; // Single gift object passed
+  GiftDetailsPage({required this.gift}); // Constructor to receive gift details
 
   @override
   _GiftDetailsPageState createState() => _GiftDetailsPageState();
@@ -16,17 +14,17 @@ class _GiftDetailsPageState extends State<GiftDetailsPage> {
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController categoryController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
-  final TextEditingController pledgeController = TextEditingController();
+  bool isPledged = false;
 
   @override
   void initState() {
     super.initState();
-    // Initialize controllers with the gift data passed dynamically
+    // Populate controllers with the gift data
     nameController.text = widget.gift['name'];
     descriptionController.text = widget.gift['description'];
     categoryController.text = widget.gift['category'];
     priceController.text = widget.gift['price'].toString();
-    pledgeController.text = widget.gift['isPledged'] ? 'true' : 'false';  // True or false
+    isPledged = widget.gift['status'] == 1; // Convert status to bool
   }
 
   @override
@@ -72,33 +70,32 @@ class _GiftDetailsPageState extends State<GiftDetailsPage> {
                 children: [
                   // Gift Image Section
                   Center(
-                    child: ClipOval(
-                      child: Container(
-                        width: 160,
-                        height: 160,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          image: DecorationImage(
-                            image: AssetImage(widget.gift['image']),
-                            fit: BoxFit.contain,
-                          ),
-                        ),
+                    child: Container(
+                      width: 160,
+                      height: 160,
+                      child: Image.asset(
+                        widget.gift['image'] ?? 'assets/Images/placeholder.jpg',
+                        fit: BoxFit.contain,
                       ),
                     ),
                   ),
+
                   SizedBox(height: 20),
+
                   // Read-Only Input Fields
                   _buildTextField(controller: nameController, labelText: 'Gift Name', readOnly: true),
                   _buildTextField(controller: descriptionController, labelText: 'Description', readOnly: true),
                   _buildTextField(controller: categoryController, labelText: 'Category', readOnly: true),
                   _buildTextField(controller: priceController, labelText: 'Price', readOnly: true),
+
                   SizedBox(height: 20),
+
                   // Status Toggle
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Status:',
+                        'Pledged Status:',
                         style: GoogleFonts.poppins(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
@@ -106,10 +103,10 @@ class _GiftDetailsPageState extends State<GiftDetailsPage> {
                         ),
                       ),
                       Switch(
-                        value: pledgeController.text == 'true',
+                        value: isPledged,
                         onChanged: (value) {
                           setState(() {
-                            pledgeController.text = value ? 'true' : 'false';
+                            isPledged = value;
                           });
                         },
                         activeColor: Colors.green,
@@ -126,7 +123,7 @@ class _GiftDetailsPageState extends State<GiftDetailsPage> {
     );
   }
 
-  // Helper function to create text fields
+  // Helper function to create styled text fields
   Widget _buildTextField({
     required TextEditingController controller,
     required String labelText,

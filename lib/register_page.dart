@@ -13,7 +13,7 @@ class RegisterPage extends StatelessWidget {
   final TextEditingController _confirmPasswordController = TextEditingController();
   final TextEditingController _dobController = TextEditingController();
   final TextEditingController _genderController = TextEditingController();
-  final TextEditingController _nationalityController = TextEditingController();
+  final TextEditingController _preferencesController = TextEditingController();
   final TextEditingController _notificationController = TextEditingController();
   final TextEditingController _phonenoController = TextEditingController();
   final DatabaseClass mydb = DatabaseClass(); // Database instance
@@ -62,7 +62,7 @@ class RegisterPage extends StatelessWidget {
                         _buildTextField(labelText: "Email", icon: Icons.email, controller: _emailController),
                         _buildTextField(labelText: "Date of Birth", icon: Icons.cake, controller: _dobController),
                         _buildTextField(labelText: "Gender", icon: Icons.person_outline, controller: _genderController),
-                        _buildTextField(labelText: "Nationality", icon: Icons.flag, controller: _nationalityController),
+                        _buildTextField(labelText: "preferences", icon: Icons.favorite, controller: _preferencesController),
                         _buildTextField(
                             labelText: "Preferred Notification",
                             icon: Icons.notifications,
@@ -130,7 +130,7 @@ class RegisterPage extends StatelessWidget {
                                   'email': _emailController.text,
                                   'date_of_birth': _dobController.text,
                                   'gender': _genderController.text,
-                                  'nationality': _nationalityController.text,
+                                  'preferences': _preferencesController.text,
                                   'notification': _notificationController.text,
                                   'image_path': 'assets/Images/default_user_image.png',
                                   'PhoneNo':_phonenoController.text,
@@ -145,7 +145,7 @@ class RegisterPage extends StatelessWidget {
                                   _passwordController.text,
                                   _dobController.text,
                                   _genderController.text,
-                                  _nationalityController.text,
+                                  _preferencesController.text,
                                   _notificationController.text,
                                   firebaseUid,
                                   _phonenoController.text,

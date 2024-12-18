@@ -21,7 +21,7 @@ class _ProfilePageState extends State<ProfilePage> {
   TextEditingController emailController = TextEditingController();
   TextEditingController dobController = TextEditingController();
   TextEditingController genderController = TextEditingController();
-  TextEditingController nationalityController = TextEditingController();
+  TextEditingController preferencesController = TextEditingController();
   TextEditingController notificationController = TextEditingController();
   TextEditingController imageController=TextEditingController();
   final DatabaseClass mydb = DatabaseClass();
@@ -41,7 +41,7 @@ class _ProfilePageState extends State<ProfilePage> {
       emailController.text = userData['email'] ?? '';
       dobController.text = userData['date_of_birth'] ?? '';
       genderController.text = userData['gender'] ?? '';
-      nationalityController.text = userData['nationality'] ?? '';
+      preferencesController.text = userData['preferences'] ?? '';
       notificationController.text = userData['notification'] ?? '';
       imageController.text = userData['image_path'] ?? 'assets/Images/John.jpg';
     });
@@ -64,7 +64,7 @@ class _ProfilePageState extends State<ProfilePage> {
       'email': emailController.text,
       'date_of_birth': dobController.text,
       'gender': genderController.text,
-      'nationality': nationalityController.text,
+      'preferences': preferencesController.text,
       'notification': notificationController.text,
       'image_path':imageController.text,
     };
@@ -73,7 +73,7 @@ class _ProfilePageState extends State<ProfilePage> {
       email: emailController.text,
         dateOfBirth: dobController.text,
       gender: genderController.text,
-      nationality: nationalityController.text,
+        preferences: preferencesController.text,
       notification: notificationController.text,imagePath:imageController.text ); // Update SQLite database
     await FirebaseFirestore.instance
         .collection('Users')
@@ -222,8 +222,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             labelText: 'Gender',
                           ),
                           _buildTextField(
-                            controller: nationalityController,
-                            labelText: 'Nationality',
+                            controller: preferencesController,
+                            labelText: 'Prefrences',
                           ),
                           _buildTextField(
                             controller: notificationController,

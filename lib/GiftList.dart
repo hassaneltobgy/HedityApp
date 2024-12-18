@@ -3,7 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'GiftDetailsPage.dart'; // Import GiftDetailsPage
 import 'myPledgedGiftsPage.dart'; // Import PledgedGiftsPage
 import 'globals.dart'; // Import global variables
-import 'package:mobile_programming_project/Models/Database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Firestore import
+import 'MyOwnGiftDetailsPage.dart' ;
 
 class GiftListPage extends StatefulWidget {
   final Map<String, dynamic> event; // Entire event object passed
@@ -15,7 +16,6 @@ class GiftListPage extends StatefulWidget {
 }
 
 class _GiftListPageState extends State<GiftListPage> {
-  DatabaseClass mydb = DatabaseClass(); // Instance of the database
   List<Map<String, dynamic>> gifts = []; // Dynamically loaded gifts
   String? _sortBy = 'name'; // Default sorting by name
 
@@ -26,18 +26,38 @@ class _GiftListPageState extends State<GiftListPage> {
   }
 
   Future<void> _loadGifts() async {
-    int eventId = widget.event['id']; // Extract eventId from event object
-    List<Map<String, dynamic>> dbGifts = await mydb.getGiftsForEvent(eventId);
+    String eventId = widget.event['FireBaseEventID']; // Extract eventId from event object
 
-    setState(() {
-      gifts = dbGifts; // Update the gifts list with database data
-    });
+    // Fetch gifts from Firestore for the given eventId
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('gifts')
+          .where('event_id', isEqualTo: eventId)
+          .get();
+
+      setState(() {
+        gifts = querySnapshot.docs.map((doc) {
+          var giftData = doc.data() as Map<String, dynamic>;
+          return {
+            'name': giftData['name'],
+            'description': giftData['description'],
+            'category': giftData['category'],
+            'price': giftData['price'],
+            'image': giftData['image_path'], // Assuming image path is 'image_path'
+            'FireBaseGiftID': doc.id, // Set Firestore gift ID
+            'status': giftData['status']  // Assuming pledged status is in 'status'
+          };
+        }).toList();
+      });
+    } catch (e) {
+      print('Error fetching gifts: $e');
+    }
   }
 
   void _togglePledge(int index) {
     setState(() {
-      gifts[index]['isPledged'] = !gifts[index]['isPledged'];
-      if (gifts[index]['isPledged']) {
+      gifts[index]['status'] = !gifts[index]['status'];
+      if (gifts[index]['status']) {
         globalPledgedGifts.add(gifts[index]);
       } else {
         globalPledgedGifts.removeWhere((gift) => gift['name'] == gifts[index]['name']);
@@ -49,7 +69,7 @@ class _GiftListPageState extends State<GiftListPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => GiftDetailsPage(gift:gift),
+        builder: (context) => GiftDetailsPage( gift:gift),
       ),
     );
   }
@@ -61,76 +81,6 @@ class _GiftListPageState extends State<GiftListPage> {
     );
   }
 
-  void _editGift(int index) {
-    final nameController = TextEditingController(text: gifts[index]['name']);
-    final descriptionController = TextEditingController(text: gifts[index]['description']);
-    final categoryController = TextEditingController(text: gifts[index]['category']);
-    final priceController = TextEditingController(text: gifts[index]['price'].toString());
-    final imageController = TextEditingController(text: gifts[index]['image']);
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Edit Gift'),
-          content: SingleChildScrollView(
-            child: Column(
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(labelText: 'Gift Name'),
-                ),
-                TextField(
-                  controller: descriptionController,
-                  decoration: InputDecoration(labelText: 'Description'),
-                ),
-                TextField(
-                  controller: categoryController,
-                  decoration: InputDecoration(labelText: 'Category'),
-                ),
-                TextField(
-                  controller: priceController,
-                  decoration: InputDecoration(labelText: 'Price'),
-                  keyboardType: TextInputType.number,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  gifts[index] = {
-                    'name': nameController.text,
-                    'description': descriptionController.text,
-                    'category': categoryController.text,
-                    'price': double.tryParse(priceController.text) ?? 0,
-                    'isPledged': gifts[index]['isPledged'],
-                    'image': imageController.text,
-                  };
-                });
-                Navigator.pop(context);
-              },
-              child: Text('Save Changes'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _deleteGift(int index) {
-    setState(() {
-      gifts.removeAt(index);
-    });
-  }
-
   void _sortGifts(String criteria) {
     setState(() {
       _sortBy = criteria;
@@ -139,7 +89,7 @@ class _GiftListPageState extends State<GiftListPage> {
       } else if (criteria == 'category') {
         gifts.sort((a, b) => a['category']!.compareTo(b['category']!));
       } else if (criteria == 'status') {
-        gifts.sort((a, b) => (a['isPledged'] ? 1 : 0).compareTo(b['isPledged'] ? 1 : 0));
+        gifts.sort((a, b) => (a['status'] ? 1 : 0).compareTo(b['status'] ? 1 : 0));
       }
     });
   }
@@ -269,32 +219,36 @@ class _GiftListPageState extends State<GiftListPage> {
                                     ),
                                     SizedBox(height: 5),
                                     Text(
-                                      '\$${gift['price'].toStringAsFixed(2)}',
+                                      '\$${gift['price'].toString()}',
                                       style: GoogleFonts.poppins(
-                                        color: Colors.red,
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 14,
+                                        color: Colors.white,
+                                        fontSize: 12,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
-                                child: ElevatedButton(
-                                  onPressed: () => _togglePledge(index),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: gift['isPledged'] ? Colors.red : Colors.grey[700],
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                      backgroundColor: (gift['status'] == 1) ? Colors.red : Colors.grey, // Changes button color
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8), // Optional rounded corners
+                                      ),
+                                    ),
+                                    onPressed: () => _togglePledge(index),
+                                    child: Text(
+                                      "Pledge",
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.white, // Text color stays white for contrast
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
-                                  child: Text(
-                                    gift['isPledged'] ? 'Pledged' : 'Pledge',
-                                    style: GoogleFonts.poppins(fontSize: 12),
-                                  ),
-                                ),
+                                ],
                               ),
                             ],
                           ),

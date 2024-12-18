@@ -71,6 +71,11 @@ class _EventListPageState extends State<EventListPage> {
           'name': eventData['name'],
           'status': eventData['status'],
           'date': eventData['date'],
+          'category':eventData['category'],
+          'description':eventData['description'],
+          'location':eventData['location'],
+          'FireBaseEventID': doc.id
+
         };
       }).toList();
     });

@@ -34,7 +34,7 @@ class DatabaseClass {
         password TEXT NOT NULL,
         date_of_birth TEXT,
         gender TEXT,
-        nationality TEXT,
+        preferences TEXT,
         notification TEXT,
         image_path TEXT,
         PhoneNo TEXT NOT NULL UNIQUE
@@ -49,7 +49,9 @@ class DatabaseClass {
           name TEXT NOT NULL,
           date TEXT NOT NULL,
           location TEXT NOT NULL,
-          description TEXT,
+          category TEXT NOT NULL,
+          description TEXT NOT NULL,
+          status TEXT NOT NULL ,
           user_id INTEGER NOT NULL,
           FOREIGN KEY (user_id) REFERENCES Users (ID)
         )
@@ -59,13 +61,14 @@ class DatabaseClass {
         await db.execute('''
       CREATE TABLE IF NOT EXISTS Gifts (
         ID INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebaseUid TEXT ,
         name TEXT NOT NULL,
         description TEXT,
         category TEXT,
         price REAL NOT NULL,
         image_path TEXT, 
-        event_id INTEGER NOT NULL,
-        is_pledged INTEGER NOT NULL,
+        event_id INT NOT NULL,
+        status INTEGER NOT NULL,
         FOREIGN KEY (event_id) REFERENCES Events (ID)
       )
       ''');
@@ -99,6 +102,7 @@ class DatabaseClass {
     return await db!.rawInsert(sql, arguments);
   }
 
+
   // Update data
   Future<int> updateData(String sql, [List<dynamic>? arguments]) async {
     final db = await MyDataBase;
@@ -123,7 +127,7 @@ class DatabaseClass {
   }
 
   //Register -->  related Function
-  Future<int> insertUser(String name, String email, String password, String dob, String gender, String nationality, String notification, String firebaseUid,String phoneno) async {
+  Future<int> insertUser(String name, String email, String password, String dob, String gender, String preferences, String notification, String firebaseUid,String phoneno) async {
     final db = await MyDataBase;
     return await db!.insert('Users', {
       'name': name,
@@ -131,7 +135,7 @@ class DatabaseClass {
       'password': password,
       'date_of_birth': dob,
       'gender': gender,
-      'nationality': nationality,
+      'preferences': preferences,
       'notification': notification,
       'firebaseUid':firebaseUid,
       'image_path': 'assets/Images/default_user_image.png',
@@ -145,7 +149,7 @@ class DatabaseClass {
     required String email,
     required String dateOfBirth,
     required String gender,
-    required String nationality,
+    required String preferences,
     required String notification,
     required String imagePath,
   }) async {
@@ -158,7 +162,7 @@ class DatabaseClass {
         'email': email,
         'date_of_birth': dateOfBirth,
         'gender': gender,
-        'nationality': nationality,
+        'preferences': preferences,
         'notification': notification,
         'image_path': imagePath,
       };
@@ -348,33 +352,91 @@ class DatabaseClass {
   //*********Methods For MyEventListPage ***********
 
 
-  Future<void> insertEvent(String name, String category, String status, String date, int userId) async {
+  Future<void> insertEvent(String name,String Firebaseuid, String category, String status, String date,String location,String description, int userId) async {
     final db = await MyDataBase;
     await db!.insert('Events', {
       'name': name,
+      'firebaseUid':Firebaseuid,
       'date': date,
-      'location': category,
-      'description': status,
+      'location':location,
+      'category': category,
+      'description': description,
       'user_id': userId,
+      'status':status,
     });
   }
+
+  Future<int?> getEventIdByFirebaseUid(String firebaseUid) async {
+    final db = await MyDataBase;
+
+    // Perform the query to get the ID based on firebaseUid
+    final result = await db!.query(
+      'Events', // The table you want to query
+      columns: ['ID'], // We only need the ID column
+      where: 'firebaseUid = ?', // Condition to match the firebaseUid
+      whereArgs: [firebaseUid], // The argument that will be used in the query
+    );
+
+    // Check if a result was found and return the ID as an integer
+    return result.isNotEmpty ? result.first['ID'] as int : null;
+  }
+
+
   Future<void> deleteEvent(int eventId) async {
     final db = await MyDataBase;
     await db!.delete('Events', where: 'ID = ?', whereArgs: [eventId]);
   }
 
-  Future<void> updateEvent(int eventId, String name, String category, String status, String date) async {
+
+  Future<void> updateEvent(int eventId, String name, String category,String location, String status, String date,String description) async {
     final db = await MyDataBase;
     await db!.update(
       'Events',
       {
         'name': name,
-        'location': category, // Assuming location is used for category
-        'description': status, // Assuming description is used for status
         'date': date,
+        'location':location,
+        'category': category,
+        'description': description,
+        'status':status,
       },
       where: 'ID = ?',
       whereArgs: [eventId],
+    );
+  }
+  Future<List<Map<String, dynamic>>> getEventByFirebaseUid(String firebaseUid) async {
+    final db = await MyDataBase;
+    return await db!.query(
+      'Events',
+      where: 'firebaseUid = ?', // Match firebaseUid in the Events table
+      whereArgs: [firebaseUid],
+    );
+  }
+  Future<String?> getEventFirebaseUid(int localEventId) async {
+    final db = await MyDataBase; // Get the database instance
+    final List<Map<String, dynamic>> result = await db!.query(
+      'Events',              // Table name
+      columns: ['firebaseUid'],  // Column to retrieve
+      where: 'ID = ?',       // Filter condition
+      whereArgs: [localEventId], // Arguments for the condition
+    );
+
+
+
+    if (result.isNotEmpty) {
+      return result.first['firebaseUid'] as String; // Return the firebaseUid
+    } else {
+      return null; // Return null if no matching event is found
+    }
+  }
+
+
+  Future<List<Map<String, dynamic>>> getGiftByEventIdAndName(String eventId, String giftName) async {
+    final db = await MyDataBase;
+    return await db!.query(
+      'Gifts',
+      where: 'event_id = ? AND name = ?', // Match both event_id and gift name
+      whereArgs: [eventId, giftName],
     );
   }
 
@@ -383,6 +445,7 @@ class DatabaseClass {
 
   //******** MyOwnGiftListpage***********
   // Insert a new gift into the database
+
   Future<void> insertGift(String name, String description, String category, double price, String imagePath, int eventId, int is_pledged) async {
     final db = await MyDataBase;
     await db!.insert(
@@ -394,11 +457,29 @@ class DatabaseClass {
         'price': price,
         'image_path': imagePath,  // Save the image path
         'event_id': eventId,
-        'is_pledged':is_pledged,
+        'status':is_pledged,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
+
+  Future<void> insertGiftFromFireStore(String name, String description, String category, double price, String imagePath, String FirebaseGiftId, int is_pledged) async {
+    final db = await MyDataBase;
+    await db!.insert(
+      'Gifts',
+      {
+        'name': name,
+        'description': description,
+        'category': category,
+        'price': price,
+        'image_path': imagePath,  // Save the image path
+        'firebaseUid': FirebaseGiftId,
+        'status':is_pledged,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
 
 
   Future<void> updateGift(int giftId, String name, String description, String category, double price, String imagePath) async {
@@ -442,6 +523,15 @@ class DatabaseClass {
     );
   }
 
+  Future<void> updateGiftFirebaseUid(int giftId, String firebaseGiftId) async {
+    final db = await MyDataBase; // Get the database instance
+    await db!.update(
+      'Gifts', // Table name
+      {'firebaseUid': firebaseGiftId}, // Field to update
+      where: 'ID = ?', // Condition to identify the record
+      whereArgs: [giftId], // Arguments to replace '?' in the query
+    );
+  }
 
 
 

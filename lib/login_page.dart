@@ -233,30 +233,37 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _syncUserEventsAndGifts(String firebaseUid) async {
     try {
       final eventsSnapshot = await FirebaseFirestore.instance
-          .collection('Users')
-          .doc(firebaseUid)
           .collection('events')
+          .where('userUid', isEqualTo: firebaseUid) // Filter for logged-in user
           .get();
 
-      for (var eventDoc in eventsSnapshot.docs) {
-        final eventId = eventDoc.id;
-        final eventData = eventDoc.data();
 
+      for (var eventDoc in eventsSnapshot.docs) {
+        final FirebaseeventId = eventDoc.id;
+        final eventData = eventDoc.data();
+//  Future<void> insertEvent(String name,String Firebaseuid, String category, String status,
+//  String date,String location,String description, int userId)
         await mydb.insertEvent(
           eventData['name'] ?? '',
+          FirebaseeventId,
+          eventData['category'] ?? '',
+          eventData['status'] ?? '',
+          eventData['date'] ?? '',
           eventData['location'] ?? '',
           eventData['description'] ?? '',
-          eventData['date'] ?? '',
           (await mydb.getUserIdByFirebaseUid(firebaseUid))!,
         );
 
+        //function to get local ID for event using FirebaseeventId then put in
+        //a variable to be used in gifts
+       int? localeventid= await mydb.getEventIdByFirebaseUid(FirebaseeventId);
+
+
         final giftsSnapshot = await FirebaseFirestore.instance
-            .collection('Users')
-            .doc(firebaseUid)
-            .collection('events')
-            .doc(eventId)
             .collection('gifts')
+            .where('event_id', isEqualTo: FirebaseeventId) // Filter for logged-in user
             .get();
+
 
         for (var giftDoc in giftsSnapshot.docs) {
           final giftData = giftDoc.data();
@@ -266,7 +273,7 @@ class _LoginPageState extends State<LoginPage> {
             giftData['category'] ?? '',
             giftData['price']?.toDouble() ?? 0.0,
             giftData['image_path'] ?? '',
-            int.parse(eventId), // Assuming eventId can be converted to int
+            localeventid!, // Assuming eventId can be converted to int
             giftData['is_pledged'] == true ? 1 : 0,
           );
         }

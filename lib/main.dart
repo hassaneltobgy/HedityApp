@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_programming_project/Models/Database.dart';
@@ -7,10 +9,10 @@ import 'register_page.dart'; // Import RegisterPage
 import 'FriendGiftListPage.dart'; // Import FriendGiftListPage
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize SQLite Database
 
 
   // Initialize Firebase

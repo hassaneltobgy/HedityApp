@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mobile_programming_project/Models/Database.dart';
 import 'MyOwnGiftDetailsPage.dart';
 
@@ -16,9 +17,7 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
   List<Map<String, dynamic>> gifts = [];
   String? _sortBy = 'name';
   final DatabaseClass db = DatabaseClass();
-  String? _selectedImagePath;  // To store the selected image path
-
-  // Available images to choose from
+  String? _selectedImagePath;
   final List<Map<String, String>> availableImages = [
     {'name': 'Headphone', 'path': 'assets/Images/headphones.jpg'},
     {'name': 'SmartWatch', 'path': 'assets/Images/smartwatch.jpg'},
@@ -34,10 +33,6 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
     _loadGifts();
   }
 
-
-
-  // Your other functions (e.g., _addGift, _deleteGift, etc.) go here...
-
   Future<void> _loadGifts() async {
     List<Map<String, dynamic>> eventGifts = await db.getGiftsForEvent(widget.event['ID']);
     setState(() {
@@ -45,18 +40,9 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
     });
   }
 
-  void _navigateToGiftDetails(Map<String, dynamic> gift) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => myOwnGiftDetailsPage(gift),
-      ),
-    ).then((value) {
-      setState(() {}); // Refresh UI after returning from details
-    });
-  }
 
-  // Function to show image selection dialog
+
+
   void _showImageSelectionDialog() {
     showDialog(
       context: context,
@@ -139,14 +125,17 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
                     _selectedImagePath != null) {
                   print('Selected Image Path: $_selectedImagePath');
                   // Check for null here
+                  //String name, String description, String category, double price,
+                  // String imagePath, String eventId, int is_pledged
+
                   await db.insertGift(
-                    nameController.text,
-                    descriptionController.text,
-                    categoryController.text,
-                    double.tryParse(priceController.text) ?? 0,
-                    _selectedImagePath!, // Now we are sure _selectedImagePath is not null
-                    widget.event['ID'],
-                    0
+                      nameController.text,
+                      descriptionController.text,
+                      categoryController.text,
+                      double.tryParse(priceController.text) ?? 0,
+                      _selectedImagePath!, // Now we are sure _selectedImagePath is not null
+                      widget.event['ID'],
+                      0
                   );
                   await _loadGifts(); // Refresh gift list
                   Navigator.pop(context);
@@ -232,6 +221,77 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
     await _loadGifts(); // Refresh after deletion
   }
 
+  // Firestore commit logic
+  Future<void> _commitGiftsToFirestore() async {
+    final firestore = FirebaseFirestore.instance;
+    final eventId = widget.event['ID']; //local Gift Id
+    String? firebaseEventUid = await db.getEventFirebaseUid(eventId);
+
+
+    try {
+
+      if (firebaseEventUid != null){
+        print('Firebase Event UID: $firebaseEventUid');
+        // 1. Delete all existing gifts for this event from Firestore
+      QuerySnapshot snapshot = await firestore
+          .collection('gifts')
+          .where('event_id', isEqualTo: firebaseEventUid)
+          .get();
+
+      for (var doc in snapshot.docs) {
+        await firestore.collection('gifts').doc(doc.id).delete();
+      }
+      }
+
+      // 2. Insert gifts from the local database into Firestore
+      final localGifts = await db.getGiftsForEvent(eventId);
+      for (var gift in localGifts) {
+        // Add the gift to Firestore
+        /*
+        * 'name': name,
+        'description': description,
+        'category': category,
+        'price': price,
+        'image_path': imagePath,  // Save the image path
+        'event_id': eventId,
+        'status':is_pledged,*/
+        DocumentReference docRef = await firestore.collection('gifts').add({
+          'name': gift['name'],
+          'description': gift['description'],
+          'category': gift['category'],
+          'price': gift['price'],
+          'image_path': gift['image_path'],
+          'event_id':firebaseEventUid,
+          'status': gift['status'],
+        });
+
+        // Update firebaseUid in the local database
+        await db.updateGiftFirebaseUid(gift['ID'], docRef.id);
+      }
+
+      // Reload gifts to reflect the updated firebaseUid
+      await _loadGifts();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gifts successfully committed to Firestore")),
+      );
+    } catch (e) {
+      print("Error committing gifts: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to commit gifts. Please try again.")),
+      );
+    }
+  }
+
+  void _navigateToGiftDetails(Map<String, dynamic> gift) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => myOwnGiftDetailsPage(gift),
+      ),
+    ).then((_) => _loadGifts());
+  }
+
+  // Add a commit button to the UI
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -258,9 +318,7 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
               ),
             ),
           ),
-          Container(
-            color: Colors.black.withOpacity(0.9),
-          ),
+          Container(color: Colors.black.withOpacity(0.9)),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -279,17 +337,12 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
                         if (newValue != null) {
                           setState(() {
                             _sortBy = newValue;
-                            if (newValue == 'name') {
-                              gifts.sort((a, b) => a['name'].compareTo(b['name']));
-                            } else if (newValue == 'category') {
-                              gifts.sort((a, b) => a['category'].compareTo(b['category']));
-                            }
+                            gifts.sort((a, b) => a[newValue].compareTo(b[newValue]));
                           });
                         }
                       },
-                      items: <String>['name', 'category']
-                          .map<DropdownMenuItem<String>>((String value) {
-                        return DropdownMenuItem<String>(
+                      items: ['name', 'category'].map((value) {
+                        return DropdownMenuItem(
                           value: value,
                           child: Text(value, style: GoogleFonts.poppins(fontSize: 14, color: Colors.white)),
                         );
@@ -303,6 +356,12 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red, padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15)),
                   child: Text('Add New Gift'),
                 ),
+                SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: _commitGiftsToFirestore,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15)),
+                  child: Text('Commit to Firestore'),
+                ),
                 SizedBox(height: 20),
                 Expanded(
                   child: ListView.builder(
@@ -312,27 +371,17 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
 
                       return ListTile(
                         leading: gift['image_path'] != null
-                            ? Image.asset(
-                          gift['image_path'],
-                          width: 50,
-                          height: 50,
-                        )
+                            ? Image.asset(gift['image_path'], width: 50, height: 50)
                             : Icon(Icons.image, size: 50, color: Colors.grey),
-                        title: Text(
-                          gift['name'],
-                          style: TextStyle(color: Colors.white),
-                        ),
-                        subtitle: Text(
-                          '${gift['category']} - \$${gift['price']}',
-                          style: TextStyle(color: Colors.grey),
-                        ),
+                        title: Text(gift['name'], style: TextStyle(color: Colors.white)),
+                        subtitle: Text('${gift['category']} - \$${gift['price']}', style: TextStyle(color: Colors.grey)),
                         onTap: () => _navigateToGiftDetails(gift),
                         trailing: Row(
-                          mainAxisSize: MainAxisSize.min, // Ensure that the icons are not stretched
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               icon: Icon(Icons.edit, color: Colors.white),
-                              onPressed: () => _editGift(gift), // Call _editGift when edit icon is tapped
+                              onPressed: () => _editGift(gift),
                             ),
                             IconButton(
                               icon: Icon(Icons.delete, color: Colors.white),
@@ -343,9 +392,7 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
                       );
                     },
                   ),
-                )
-
-
+                ),
               ],
             ),
           ),

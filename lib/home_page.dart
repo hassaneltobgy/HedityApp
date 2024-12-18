@@ -20,19 +20,8 @@ class _HomePageState extends State<HomePage> {
   List<Map<String, dynamic>> friends = [];
   List<Map<String, dynamic>> filteredFriends = [];
 
-  @override
-  void initState() {
-    super.initState();
-    _loadFriends(); // Load friends from Firestore
-    _searchController.addListener(() {
-      setState(() {
-        filteredFriends = friends
-            .where((friend) =>
-            friend['name'].toLowerCase().contains(_searchController.text.toLowerCase()))
-            .toList();
-      });
-    });
-  }
+
+
 
   // Load friends for the current user from Firestore
   Future<void> _loadFriends() async {
@@ -219,7 +208,73 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+  void _handleUnreadNotifications(String FirebaseUid) async {
+    try {
+      // Fetch unread notifications for the user
+      QuerySnapshot snapshot = await FirebaseFirestore.instance
+          .collection('notification')
+          .where('friendFirebaseUid', isEqualTo: FirebaseUid)
+          .where('read', isEqualTo: 'No') // Fetch only unread notifications
+          .get();
 
+      if (snapshot.docs.isEmpty) return; // No notifications to show
+
+      for (var doc in snapshot.docs) {
+        // Extract the notification data
+        Map<String, dynamic> notification = doc.data() as Map<String, dynamic>;
+        String notificationId = doc.id;
+        String message = notification['Notification'] ?? 'You have a new notification!';
+
+        // Display notification as a SnackBar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            duration: Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Mark as Read',
+              onPressed: () async {
+                // Mark the notification as read
+                await FirebaseFirestore.instance
+                    .collection('notification')
+                    .doc(notificationId)
+                    .update({'read': 'Yes'});
+              },
+            ),
+          ),
+        );
+
+        // Optional: Add a slight delay between notifications to avoid overlapping SnackBars
+        await Future.delayed(Duration(seconds: 6));
+      }
+    } catch (e) {
+      // Handle errors (e.g., no connection, Firestore issues)
+      print('Error fetching notifications: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading notifications. Please try again later.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    print("I am currently at init");
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleUnreadNotifications(widget.firebaseUid);
+    });
+    _loadFriends(); // Load friends from Firestore
+    _searchController.addListener(() {
+      setState(() {
+        filteredFriends = friends
+            .where((friend) =>
+            friend['name'].toLowerCase().contains(_searchController.text.toLowerCase()))
+            .toList();
+      });
+    });
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(

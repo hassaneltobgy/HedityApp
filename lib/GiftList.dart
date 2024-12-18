@@ -5,6 +5,7 @@ import 'myPledgedGiftsPage.dart'; // Import PledgedGiftsPage
 import 'globals.dart'; // Import global variables
 import 'package:cloud_firestore/cloud_firestore.dart'; // Firestore import
 import 'MyOwnGiftDetailsPage.dart' ;
+import 'package:mobile_programming_project/Models/Firestore.dart';
 
 class GiftListPage extends StatefulWidget {
   final Map<String, dynamic> event; // Entire event object passed
@@ -20,6 +21,7 @@ class GiftListPage extends StatefulWidget {
 class _GiftListPageState extends State<GiftListPage> {
   List<Map<String, dynamic>> gifts = []; // Dynamically loaded gifts
   String? _sortBy = 'name'; // Default sorting by name
+  final FirestoreService firestore = FirestoreService();
 
   @override
   void initState() {
@@ -80,6 +82,7 @@ class _GiftListPageState extends State<GiftListPage> {
     final gift = gifts[index];
     final giftId = gift['FireBaseGiftID'];
     final currentStatus = gift['status'];
+    String eventId = widget.event['FireBaseEventID'];
 
     try {
       if (currentStatus == 0) {
@@ -88,6 +91,17 @@ class _GiftListPageState extends State<GiftListPage> {
           'firebaseUid': widget.firebaseUid,         // User who pledged
           'friendFirebaseUid': widget.friendFirebaseUid, // Friend whose gift is pledged
           'FireBaseGiftID': giftId,                 // Gift ID
+        });
+        String? userName = await firestore.getUserNameFromFirestore(widget.firebaseUid);
+        String? GiftName=await firestore.getGiftNameFromFirestore(giftId);
+        String? eventName=await firestore.getEventNameFromFirestore(eventId);
+       String message='User $userName Has pledged gift $GiftName for Event $eventName';
+        await FirebaseFirestore.instance.collection('notification').add({
+          'firebaseUid': widget.firebaseUid,         // User who pledged
+          'friendFirebaseUid': widget.friendFirebaseUid, // Friend whose gift is pledged
+          'FireBaseGiftID': giftId,
+          'Notification':message,
+          'read':'No',// Gift ID
         });
 
         await FirebaseFirestore.instance.collection('gifts').doc(giftId).update({
@@ -101,7 +115,7 @@ class _GiftListPageState extends State<GiftListPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Gift marked as pledged.'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.green,
           ),
         );
 
@@ -150,7 +164,7 @@ class _GiftListPageState extends State<GiftListPage> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Gift marked as purchased.'),
-                backgroundColor: Colors.green,
+                backgroundColor: Colors.red,
               ),
             );
             // Optionally, you can show a message to the user that the gift has been marked as purchased

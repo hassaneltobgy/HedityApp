@@ -140,6 +140,28 @@ class DatabaseClass {
     return result.first['ID'];
   }
 
+  Future<String?> getUserNameByFirebaseUid(String firebaseUid) async {
+    final db = await MyDataBase;
+
+    // Query the database for the user with the given firebaseUid
+    final result = await db!.query(
+      'Users', // Table name
+      columns: ['name'], // Column to fetch
+      where: 'firebaseUid = ?', // Condition
+      whereArgs: [firebaseUid], // Argument for the condition
+      limit: 1, // We only need one result
+    );
+
+    // If a matching user is found, return the name
+    if (result.isNotEmpty) {
+      return result.first['name'] as String;
+    }
+
+    // If no matching user is found, return null
+    return null;
+  }
+
+
   //Register -->  related Function
   Future<int> insertUser(String name, String email, String password, String dob, String gender, String preferences, String notification, String firebaseUid,String phoneno) async {
     final db = await MyDataBase;

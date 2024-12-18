@@ -192,4 +192,70 @@ class FirestoreService {
   }
 
 
+  Future<String?> getUserNameFromFirestore(String firebaseUid) async {
+    try {
+      // Reference to the Firestore collection
+      final userDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(firebaseUid)
+          .get();
+
+      // Check if the document exists
+      if (userDoc.exists) {
+        // Get the 'name' field
+        return userDoc.data()?['name'] as String?;
+      } else {
+        print('User with Firebase UID $firebaseUid not found.');
+        return null;
+      }
+    } catch (e) {
+      print('Error fetching user name: $e');
+      return null;
+    }
+  }
+
+  Future<String?> getGiftNameFromFirestore(String FireBaseGiftid) async {
+    try {
+      // Reference to the Firestore collection
+      final userDoc = await FirebaseFirestore.instance
+          .collection('gifts')
+          .doc(FireBaseGiftid)
+          .get();
+
+      // Check if the document exists
+      if (userDoc.exists) {
+        // Get the 'name' field
+        return userDoc.data()?['name'] as String?;
+      } else {
+        print('Gifts with FirebaseID $FireBaseGiftid not found.');
+        return null;
+      }
+    } catch (e) {
+      print('Error fetching user name: $e');
+      return null;
+    }
+  }
+
+  Future<String?> getEventNameFromFirestore(String FireBaseEventId) async {
+    try {
+      // Reference to the Firestore collection
+      final userDoc = await FirebaseFirestore.instance
+          .collection('events')
+          .doc(FireBaseEventId)
+          .get();
+
+      // Check if the document exists
+      if (userDoc.exists) {
+        // Get the 'name' field
+        return userDoc.data()?['name'] as String?;
+      } else {
+        print('Event with FirebaseID $FireBaseEventId not found.');
+        return null;
+      }
+    } catch (e) {
+      print('Error fetching user name: $e');
+      return null;
+    }
+  }
+
 }

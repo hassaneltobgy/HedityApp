@@ -480,8 +480,8 @@ class _HomePageState extends State<HomePage> {
                 ),
                 SizedBox(height: 20),
                 Text(
-                  'List of Friends: ',
-                  style: GoogleFonts.poppins(
+                  'List of Friends:',
+                  style:TextStyle(
                     color: Colors.red,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,

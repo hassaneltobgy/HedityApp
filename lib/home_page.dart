@@ -63,10 +63,19 @@ class _HomePageState extends State<HomePage> {
           .where('userUid', isEqualTo: widget.firebaseUid)
           .where('friendUid', isEqualTo: friendUid)
           .get();
+      QuerySnapshot reversesnapshot = await FirebaseFirestore.instance
+          .collection('friends')
+          .where('userUid', isEqualTo: friendUid)
+          .where('friendUid', isEqualTo: widget.firebaseUid)
+          .get();
 
       // Delete the friend document
       for (var doc in snapshot.docs) {
         await FirebaseFirestore.instance.collection('friends').doc(doc.id).delete();
+      }
+
+      for (var doc2 in reversesnapshot.docs) {
+        await FirebaseFirestore.instance.collection('friends').doc(doc2.id).delete();
       }
 
       // Update local state
@@ -127,41 +136,110 @@ class _HomePageState extends State<HomePage> {
             ),
             ElevatedButton(
               onPressed: () async {
+                String phoneNumber = phoneController.text.trim();
+                if (phoneNumber.isEmpty || !RegExp(r'^01\d{9}$').hasMatch(phoneNumber)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Make sure PhoneNo is Not Empty And 11 digit',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      backgroundColor: Colors.red, // Red background for the SnackBar
+                      duration: Duration(seconds: 3), // Set duration to make it visible for 3 seconds
+                      behavior: SnackBarBehavior.floating, // Optional: makes the SnackBar float above content
+                      action: SnackBarAction(
+                        label: 'Okay',
+                        onPressed: () {
+                          // You can add an action, for example, closing the SnackBar
+                        },
+                        textColor: Colors.white, // Action text color
+                      ),
+                    ),
+                  );
+
+                  return;
+                }
                 if (phoneController.text.isNotEmpty) {
                   // Check if the phone number is registered
                   bool isRegistered = await _isPhoneNumberRegistered(phoneController.text);
                   if (isRegistered) {
                     String Friend_firebaseUid = await _getFirebaseUidByPhone(phoneController.text);
 
-                    // Fetch user details and add to the list
-                    DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('Users').doc(Friend_firebaseUid).get();
-                    int upcomingEventsCount = await _getUpcomingEventsCount(Friend_firebaseUid);
+                    // Check if they are already friends
+                    var querySnapshot = await FirebaseFirestore.instance
+                        .collection('friends')
+                        .where('userUid', isEqualTo: widget.firebaseUid)
+                        .where('friendUid', isEqualTo: Friend_firebaseUid)
+                        .get();
 
-                    // Add the friend to the "friends" collection in Firestore
-                    await FirebaseFirestore.instance.collection('friends').add({
-                      'userUid': widget.firebaseUid,
-                      'friendUid': Friend_firebaseUid,
-                    });
-                    await FirebaseFirestore.instance.collection('friends').add({
-                      'userUid': Friend_firebaseUid,
-                      'friendUid': widget.firebaseUid,
-                    });
 
-                    // Add the friend to the list
-                    setState(() {
-                      friends.add({
-                        'name': userDoc['name'],
-                        'profilePic': userDoc['image_path'] ?? 'assets/Images/default_user_image.png',
-                        'upcomingEvents': upcomingEventsCount.toString(),
-                        'id': Friend_firebaseUid,
+
+                    if (querySnapshot.docs.isEmpty ) {
+                      // Not already friends, proceed to add
+                      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('Users').doc(Friend_firebaseUid).get();
+                      int upcomingEventsCount = await _getUpcomingEventsCount(Friend_firebaseUid);
+
+                      // Add the friend to the "friends" collection in Firestore
+                      await FirebaseFirestore.instance.collection('friends').add({
+                        'userUid': widget.firebaseUid,
+                        'friendUid': Friend_firebaseUid,
                       });
-                      filteredFriends = friends;
-                    });
+                      await FirebaseFirestore.instance.collection('friends').add({
+                        'userUid': Friend_firebaseUid,
+                        'friendUid': widget.firebaseUid,
+                      });
 
-                    Navigator.pop(context);
+                      // Add the friend to the list
+                      setState(() {
+                        friends.add({
+                          'name': userDoc['name'],
+                          'profilePic': userDoc['image_path'] ?? 'assets/Images/default_user_image.png',
+                          'upcomingEvents': upcomingEventsCount.toString(),
+                          'id': Friend_firebaseUid,
+                        });
+                        filteredFriends = friends;
+                      });
+
+                      Navigator.pop(context);
+                    } else {
+                      // Already friends
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'You are Already Friends with this User',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                          backgroundColor: Colors.red, // Red background for the SnackBar
+                          duration: Duration(seconds: 5), // Set duration to make it visible for 3 seconds
+                          behavior: SnackBarBehavior.floating, // Optional: makes the SnackBar float above content
+                          action: SnackBarAction(
+                            label: 'Okay',
+                            onPressed: () {
+                              // You can add an action, for example, closing the SnackBar
+                            },
+                            textColor: Colors.white, // Action text color
+                          ),
+                        ),
+                      );
+                    }
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Phone number is not registered')),
+                      SnackBar(
+                        content: Text(
+                          'Phone Number is not registered',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        backgroundColor: Colors.red, // Red background for the SnackBar
+                        duration: Duration(seconds: 3), // Set duration to make it visible for 3 seconds
+                        behavior: SnackBarBehavior.floating, // Optional: makes the SnackBar float above content
+                        action: SnackBarAction(
+                          label: 'Okay',
+                          onPressed: () {
+                            // You can add an action, for example, closing the SnackBar
+                          },
+                          textColor: Colors.white, // Action text color
+                        ),
+                      ),
                     );
                   }
                 }
@@ -173,6 +251,7 @@ class _HomePageState extends State<HomePage> {
       },
     );
   }
+
 
   // Check if the phone number is registered in Firestore
   Future<bool> _isPhoneNumberRegistered(String phone) async {
@@ -228,10 +307,41 @@ class _HomePageState extends State<HomePage> {
         // Display notification as a SnackBar
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(message),
+            content: Row(
+              children: [
+                Icon(Icons.notifications, color: Colors.white), // Add an icon to make it more visually appealing
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: TextStyle(
+                      color: Colors.white, // White text for contrast
+                      fontSize: 12, // Increase the font size slightly for readability
+                      fontWeight: FontWeight.bold, // Make the text bold for emphasis
+                      letterSpacing: 1.2, // Add letter spacing for a more open feel
+                      shadows: [
+                        Shadow(
+                          blurRadius: 4.0, // Add blur to the shadow
+                          color: Colors.black.withOpacity(0.5), // Subtle black shadow for depth
+                          offset: Offset(2.0, 2.0), // Position the shadow slightly to the bottom-right
+                        ),
+                      ],
+                    )
+                    // White text for contrast
+                  ),
+                ),
+              ],
+            ),
             duration: Duration(seconds: 5),
+            backgroundColor: Colors.black, // Black background for consistency with theme
+            behavior: SnackBarBehavior.floating, // Makes the snackbar float above content
+            margin: EdgeInsets.all(16), // Adds space around the snackbar
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10), // Rounded corners
+            ),
             action: SnackBarAction(
               label: 'Mark as Read',
+              textColor: Colors.red, // Red text for the action button
               onPressed: () async {
                 // Mark the notification as read
                 await FirebaseFirestore.instance
@@ -242,6 +352,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         );
+
 
         // Optional: Add a slight delay between notifications to avoid overlapping SnackBars
         await Future.delayed(Duration(seconds: 6));
@@ -396,9 +507,9 @@ class _HomePageState extends State<HomePage> {
                                 children: [
                                   CircleAvatar(
                                     radius: 30,
-                                    backgroundImage: NetworkImage(friend['profilePic']),
-                                    backgroundColor: Colors.grey,
+                                    backgroundImage: AssetImage(friend['profilePic']), // friend['profilePic'] should be a relative path to your asset
                                   ),
+
                                   SizedBox(width: 15),
                                   Expanded(
                                     child: Text(

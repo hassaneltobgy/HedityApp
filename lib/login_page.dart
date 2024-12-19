@@ -82,7 +82,12 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         SizedBox(height: 20),
                         _isLoading
-                            ? Center(child: CircularProgressIndicator())
+                            ? Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                          ),
+                        )
+
                             : ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red,
@@ -220,8 +225,36 @@ class _LoginPageState extends State<LoginPage> {
       } catch (e) {
         print('Error during login: $e');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white), // Add an error icon
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Error: ${e.toString()}',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.black, // Black background for consistency with theme
+            behavior: SnackBarBehavior.floating, // Makes the snackbar float above content
+            margin: EdgeInsets.all(16), // Adds space around the snackbar
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            action: SnackBarAction(
+              label: 'DISMISS',
+              textColor: Colors.red, // Red text for action button
+              onPressed: () {
+                // Optional: Add dismiss functionality
+              },
+            ),
+            duration: Duration(seconds: 7), // Controls how long the snackbar stays visible
+          ),
         );
+
       } finally {
         setState(() {
           _isLoading = false;

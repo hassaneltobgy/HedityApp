@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'GiftDetailsPage.dart'; // Import GiftDetailsPage
 import 'myPledgedGiftsPage.dart'; // Import PledgedGiftsPage
-import 'globals.dart'; // Import global variables
+
 import 'package:cloud_firestore/cloud_firestore.dart'; // Firestore import
 import 'MyOwnGiftDetailsPage.dart' ;
 import 'package:mobile_programming_project/Models/Firestore.dart';

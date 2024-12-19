@@ -26,7 +26,6 @@ class _ProfilePageState extends State<ProfilePage> {
   TextEditingController imageController=TextEditingController();
   final DatabaseClass mydb = DatabaseClass();
 
-  String _profileImagePath = 'assets/Images/default_user_image.png'; // Default profile image
 
   @override
   void initState() {
@@ -50,6 +49,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _updateProfileImage(String newPath) async {
     setState(() {
       imageController.text = newPath;
+      print(imageController.text);
     });
     await mydb.updateUserImage(widget.userId, newPath); // Update SQLite database
     await FirebaseFirestore.instance
@@ -59,6 +59,55 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _updateUserInfo() async {
+
+    final emailRegExp = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    final dateRegExp = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+
+    if (emailController.text.isEmpty || !emailRegExp.hasMatch(emailController.text)) {
+      // If email is empty or doesn't match the pattern, show a validation snackBar
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Make Sure Email is in Correct Format example: hassan@gmail.com',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.red, // Red background for the SnackBar
+          duration: Duration(seconds: 6), // Set duration to make it visible for 3 seconds
+          behavior: SnackBarBehavior.floating, // Optional: makes the SnackBar float above content
+          action: SnackBarAction(
+            label: 'Okay',
+            onPressed: () {
+              // You can add an action, for example, closing the SnackBar
+            },
+            textColor: Colors.white, // Action text color
+          ),
+        ),
+      );
+      return; // Exit the function if email is not valid
+    }
+    if (dobController.text.isEmpty || !dateRegExp.hasMatch(dobController.text)) {
+      // If date is empty or doesn't match the yyyy-mm-dd pattern
+      //''
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Please enter a valid date in the format yyyy-mm-dd.',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.red, // Red background for the SnackBar
+          duration: Duration(seconds: 6), // Set duration to make it visible for 3 seconds
+          behavior: SnackBarBehavior.floating, // Optional: makes the SnackBar float above content
+          action: SnackBarAction(
+            label: 'Okay',
+            onPressed: () {
+              // You can add an action, for example, closing the SnackBar
+            },
+            textColor: Colors.white, // Action text color
+          ),
+        ),
+      );
+      return; // Exit the function if date is not valid
+    }
     final updatedData = {
       'name': nameController.text,
       'email': emailController.text,
@@ -116,7 +165,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildImageOption(String imagePath) {
     return ListTile(
       leading: CircleAvatar(
-        backgroundImage: AssetImage(imageController.text),
+        backgroundImage: AssetImage(imagePath),
       ),
       title: Text(imagePath.split('/').last),
       onTap: () {
@@ -176,7 +225,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       onTap: _showImageSelectionDialog, // Open image selection dialog
                       child: CircleAvatar(
                         radius: 60,
-                        backgroundImage: AssetImage(_profileImagePath),
+                        backgroundImage: AssetImage(imageController.text),
                         backgroundColor: Colors.grey[800],
                       ),
                     ),

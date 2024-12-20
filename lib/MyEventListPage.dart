@@ -54,22 +54,27 @@ class _MyEventListPageState extends State<MyEventListPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
+                  key: Key('MyEventName'),
                   controller: nameController,
                   decoration: InputDecoration(labelText: 'Event Name'),
                 ),
                 TextField(
+                  key: Key('MyCategory'),
                   controller: categoryController,
                   decoration: InputDecoration(labelText: 'Category'),
                 ),
                 TextField(
+                  key: Key('MyDescription'),
                   controller: descriptionController,
                   decoration: InputDecoration(labelText: 'Description'),
                 ),
                 TextField(
+                  key: Key('MyDate'),
                   controller: dateController,
                   decoration: InputDecoration(labelText: 'Date'),
                 ),
                 TextField(
+                  key: Key('MyLocation'),
                   controller: locationController,
                   decoration: InputDecoration(labelText: 'Location'),
                 ),
@@ -136,6 +141,7 @@ class _MyEventListPageState extends State<MyEventListPage> {
                   );
 
                   // Close the dialog
+
                   Navigator.pop(context);
                 } else {
                   // Show error if any required field is empty
@@ -504,10 +510,12 @@ class _MyEventListPageState extends State<MyEventListPage> {
                     itemBuilder: (context, index) {
                       final event = events[index];
                       return GestureDetector(
+                        key: Key('event_$index'),
                         onTap: () {
                           _goToGiftListPage(event);
                         },
                         child: Card(
+
                           color: Colors.black.withOpacity(0.6),
                           margin: EdgeInsets.symmetric(vertical: 10),
                           shape: RoundedRectangleBorder(

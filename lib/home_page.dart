@@ -120,6 +120,7 @@ class _HomePageState extends State<HomePage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
+                  key: Key('phoneTextField'),
                   controller: phoneController,
                   decoration: InputDecoration(labelText: 'Phone Number'),
                   keyboardType: TextInputType.phone,

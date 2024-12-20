@@ -125,6 +125,16 @@ class DatabaseClass {
 
     return result.isNotEmpty; // Return true if user exists, false otherwise
   }
+
+  Future<int> deleteUserByFirebaseUid(String firebaseUid) async {
+    final db = await MyDataBase; // Access the database instance
+    return await db!.delete(
+      'Users', // Table name
+      where: 'firebaseUid = ?', // Condition to match the firebaseUid
+      whereArgs: [firebaseUid], // Value to substitute in the condition
+    );
+  }
+
   Future<int> NewgetIdByFirebaseUid(String firebaseUid) async {
     final db = await MyDataBase; // Assuming MyDataBase is your database reference
 

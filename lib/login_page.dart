@@ -179,6 +179,17 @@ class _LoginPageState extends State<LoginPage> {
 
         // Retrieve the corresponding userId from the local database
         int? userId = await mydb.getUserIdByFirebaseUid(firebaseUid);
+        // if(userId !=null)
+        //   {
+        //     // in case user  did change from other phone to his profile or His events/gifts
+        //     // We want database to be updated with things from firestore
+        //     //delete local db and insert user again to ensure user is up to date
+        //     //as when navigatin between pages we use local db to make application faster
+        //     await mydb.deleteUserByFirebaseUid(firebaseUid);
+        //
+        //
+        //   }
+        // userId=null;
 
         if (userId == null) {
           // Fetch data from Firestore and sync it locally

@@ -6,8 +6,9 @@ import 'package:mobile_programming_project/Models/Database.dart';
 import 'firebase_options.dart';
 import 'login_page.dart'; // Import LoginPage
 import 'register_page.dart'; // Import RegisterPage
-import 'FriendGiftListPage.dart'; // Import FriendGiftListPage
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mobile_programming_project/LandingPage.dart';
 
 
 Future<void> main() async {
@@ -47,10 +48,12 @@ class MyApp extends StatelessWidget {
           bodySmall: TextStyle(color: Colors.white), // White body text (small)
         ),
       ),
-      initialRoute: '/login', // Initial route set to '/login'
+      initialRoute: '/LandingPage', // Initial route set to '/login'
       routes: {
         '/login': (context) => LoginPage(),
         '/register': (context) => RegisterPage(),
+        '/LandingPage':(context) => LandingPage(),
+
 
         // Add other pages as needed
       },

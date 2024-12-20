@@ -99,10 +99,10 @@ class _MyOwnGiftListPageState extends State<MyOwnGiftListPage> {
           content: SingleChildScrollView(
             child: Column(
               children: [
-                TextField(controller: nameController, decoration: InputDecoration(labelText: 'Gift Name')),
-                TextField(controller: descriptionController, decoration: InputDecoration(labelText: 'Description')),
-                TextField(controller: categoryController, decoration: InputDecoration(labelText: 'Category')),
-                TextField(controller: priceController, decoration: InputDecoration(labelText: 'Price'), keyboardType: TextInputType.number),
+                TextField(key: Key('MyGiftName'),controller: nameController, decoration: InputDecoration(labelText: 'Gift Name')),
+                TextField(key: Key('MyGiftDescription'),controller: descriptionController, decoration: InputDecoration(labelText: 'Description')),
+                TextField(key: Key('MyGiftCategory'),controller: categoryController, decoration: InputDecoration(labelText: 'Category')),
+                TextField(key: Key('MyGiftPrice'),controller: priceController, decoration: InputDecoration(labelText: 'Price'), keyboardType: TextInputType.number),
                 ElevatedButton(
                   onPressed: () {
                     _showImageSelectionDialog();
